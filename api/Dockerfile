@@ -7,6 +7,7 @@ ENV APP_HOME /app
 WORKDIR $APP_HOME
 COPY . ./
 
+ADD requirements.txt . 
 # Install dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
 
