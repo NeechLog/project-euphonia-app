@@ -1,0 +1,28 @@
+# Cloud Build configuration for Euphonia Server
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - build
+    - '-f'
+    - 'Dockerfile'
+    - '--tag=asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:ver-0.01'
+    - '--tag=asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:latest'
+    - .
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:ver-0.01']
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:latest']
+
+images:
+- 'asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:ver-0.01'
+- 'asia-south2-docker.pkg.dev/$PROJECT_ID/voice-assist-docker-repo/euphonia-server:latest'
+
+# Set timeout for the build (default is 10 minutes)
+timeout: '1800s'
+
+# Specify the region for Artifact Registry
+options:
+  dynamic_substitutions: true
+  logging: CLOUD_LOGGING_ONLY
