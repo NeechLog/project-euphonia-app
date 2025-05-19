@@ -25,7 +25,7 @@ RUN pip install -r requirements.txt
 # CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "-p", "8080"]
 
 # Faster whisper-based app
-ENV FLASK_APP=app_faster_whisper.py
+ENV FLASK_APP=app_dia.py
 ENV PYTHON_LOG_LEVEL=INFO
 CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "-p", "8080"]
 
