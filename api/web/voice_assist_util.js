@@ -94,7 +94,7 @@ async function startRecording() {
                 statusText.textContent = "Recording was empty.";
                 return;
             }
-            //playAudioBlob(audioBlob, audioPlayback, "testing raw audio");
+           // playAudioBlob(audioBlob, audioPlayback, "testing raw audio");
             wavAudioResult = await convertAudioBlob(audioBlob, 'wav');
             //playAudioBlob(wavAudioResult.blob, audioPlayback, "testing wav audio"); 
             await sendAudioToServer(wavAudioResult.blob, wavAudioResult.fileName);

@@ -43,63 +43,36 @@ def process_audio():
         logger.info(f'Processing audio file: {audio_file.filename}')
         mime_type = audio_file.content_type
         
-        # Create a temporary file to save the uploaded audio
-        _, tmp_wav_file = tempfile.mkstemp(suffix=audio_file.filename.split('.')[-1])   
-        audio_file.save(tmp_wav_file)
+        # Save the uploaded file to a temporary location
+        _, tmp_file = tempfile.mkstemp(suffix=os.path.splitext(audio_file.filename)[1])
+        audio_file.save(tmp_file)
         
-        # Read the audio file
-        audio_array, samplerate = sf.read(tmp_wav_file)
+        processed_text = "Echoing back original file"
         
-        # Clean up the temporary file
-        os.remove(tmp_wav_file)
-        
-        processed_text = "Hi - Server"
-        # Create a generator to stream the audio back
+        # Create a generator to stream the file back
         def generate():
-            # Create an in-memory buffer for WAV data
-            wav_buffer = io.BytesIO()
-            
-            # Save as WAV to memory first (ffmpeg works better with WAV input)
-            sf.write(
-                wav_buffer,
-                audio_array,
-                16000,  # Sample rate
-                format='WAV',
-                closefd=False
-            )
-            wav_buffer.seek(0)
-            
-            # Set up ffmpeg to convert WAV to MP3 in memory
-            process = (
-                ffmpeg
-                .input('pipe:')
-                .output('pipe:', format='mp3', audio_bitrate='128k', ac=1, ar='16k')
-                .run_async(pipe_stdin=True, pipe_stdout=True, pipe_stderr=True, quiet=True)
-            )
-            
-            # Feed WAV data to ffmpeg
-            process.stdin.write(wav_buffer.read())
-            process.stdin.close()
-            wav_buffer.close()
-            
-            # Stream MP3 data in chunks
-            chunk_size = 4096
-            while True:
-                chunk = process.stdout.read(chunk_size)
-                if not chunk:
-                    break
-                yield chunk
-            
-            # Clean up
-            process.wait()
+            try:
+                chunk_size = 4096  # 4KB chunks
+                with open(tmp_file, 'rb') as f:
+                    while True:
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                # Clean up the temporary file
+                try:
+                    os.unlink(tmp_file)
+                except OSError:
+                    pass
         
-        # Return the audio as a stream with MP3 MIME type
+        # Return the file as a stream with original MIME type
         return Response(
             generate(),
-            mimetype='audio/mp3',
+            mimetype=mime_type,
             headers={
                 'X-Response-Text': processed_text,
-                'Content-Disposition': f'attachment; filename=processed_{os.path.splitext(audio_file.filename)[0]}.mp3'
+                'Content-Disposition': f'attachment; filename=processed_{audio_file.filename}'
             }
         )
         

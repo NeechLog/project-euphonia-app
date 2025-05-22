@@ -82,3 +82,6 @@ Project Euphonia’s open-source toolkits are designed to facilitate the creatio
 - A Flutter-based mobile application for recording speech data and associating it with text phrases. The application stores data in a Firebase Storage instance controlled by the developer.
 - Google Colab notebooks providing example code and documentation for fine-tuning open-source Automatic Speech Recognition (ASR) models. The notebooks will help inform developers on the following topics: data preparation, model training, and performance evaluation.
 - Example code for deploying a web service that performs speech-to-text transcription using the fine-tuned ASR models. The web service can be deployed to cloud platforms such as Google Cloud Run.
+
+-- Additional information
+-- just run app_dia and access http://localhost:50001/web/voice_assist.html 
