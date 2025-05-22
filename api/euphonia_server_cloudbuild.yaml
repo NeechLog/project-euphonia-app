@@ -1,3 +1,15 @@
+# This is a Cloud Build configuration file to build docker image for the euphonia server (api directory)
+# Following commands were run to build the docker image
+# gcloud builds submit --config euphonia_server_cloudbuild.yaml
+# gcloud artifacts repositories create voice-assist-docker-repo   --repository-format=docker   --location=asia-south2   --description=“Dockers-for-VoiceAsist” --project=upheld-shield-459005-j8
+# gcloud artifacts repositories list
+# gcloud builds submit --config euphonia_server_cloudbuild.yaml
+# gcloud builds list 
+# gcloud builds log build-Hash
+# TODO: write Terrafarm script to deploy this docker image to Google compute as well as generate this
+# TODO: write commands to clean up everything
+# TODO: write commands to delete the docker image from Google Artifact Registry
+# TODO: write commands to delete the docker image from Google Container Registry
 # Cloud Build configuration for Euphonia Server
 steps:
 - name: 'gcr.io/cloud-builders/docker'

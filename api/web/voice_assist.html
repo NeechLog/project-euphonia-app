@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Voice Interaction App</title>
+<!-- TODO: Replace with documented Tailwind CSS in production -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+            margin: 0;
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem; /* Tailwind rounded-xl */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Tailwind shadow-lg */
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            font-weight: 600; /* Tailwind semibold */
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-record {
+            background-color: #10b981; /* Tailwind green-500 */
+            color: white;
+        }
+        .btn-record:hover {
+            background-color: #059669; /* Tailwind green-600 */
+        }
+        .btn-stop {
+            background-color: #ef4444; /* Tailwind red-500 */
+            color: white;
+        }
+        .btn-stop:hover {
+            background-color: #dc2626; /* Tailwind red-600 */
+        }
+        .status-text {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+            font-size: 0.875rem; /* Tailwind text-sm */
+            color: #4b5563; /* Tailwind gray-600 */
+            min-height: 20px;
+        }
+        .response-container {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #e5e7eb; /* Tailwind gray-200 */
+            border-radius: 0.5rem; /* Tailwind rounded-lg */
+            background-color: #f9fafb; /* Tailwind gray-50 */
+            min-height: 50px;
+            text-align: left;
+        }
+        .response-container h3 {
+            font-size: 1.125rem; /* Tailwind text-lg */
+            font-weight: 600; /* Tailwind semibold */
+            color: #1f2937; /* Tailwind gray-800 */
+            margin-bottom: 0.5rem;
+        }
+        .response-text {
+            font-size: 1rem; /* Tailwind text-base */
+            color: #374151; /* Tailwind gray-700 */
+            word-wrap: break-word;
+        }
+        audio {
+            width: 100%;
+            margin-top: 1rem;
+            border-radius: 0.375rem; /* Tailwind rounded-md */
+        }
+        /* Message Box Styling */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ef4444; /* Default error color (red-500) */
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out, top 0.5s ease-in-out;
+            font-size: 0.875rem;
+        }
+        .message-box.success {
+            background-color: #10b981; /* green-500 */
+        }
+        .message-box.info {
+            background-color: #3b82f6; /* blue-500 */
+        }
+        .message-box.show {
+            opacity: 1;
+            top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">Voice Assist Web App</h1>
+        <button id="recordButton" class="btn btn-record">
+            <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+            Record Voice
+        </button>
+
+        <div id="statusText" class="status-text">Press "Record Voice" to start.</div>
+
+        <div class="response-container">
+            <h3>Server Response:</h3>
+            <div id="responseText" class="response-text">Waiting for server...</div>
+            <audio id="audioPlayback" controls class="hidden"></audio>
+        </div>
+    </div>
+
+    <div id="messageBox" class="message-box"></div>
+
+    <!-- Include the external JavaScript file -->
+    <!--script src="https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"></script>
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
+    <script src="ffmpeg_conversion_functions.js"></script-->
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <script src ="audioConverter.js"></script>
+    <script src="voice_assist_util.js"></script>
+</body>
+</html>
