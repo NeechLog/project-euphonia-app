@@ -118,6 +118,7 @@
             <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
             Record Voice
         </button>
+        <button id="trainModelButton" class="btn btn-record ml-4">Train Model</button>
 
         <div id="statusText" class="status-text">Press "Record Voice" to start.</div>
 
@@ -125,6 +126,17 @@
             <h3>Server Response:</h3>
             <div id="responseText" class="response-text">Waiting for server...</div>
             <audio id="audioPlayback" controls class="hidden"></audio>
+        </div>
+
+        <div id="trainin_model" class="mt-6 hidden">
+            <h3 class="text-lg font-semibold mb-2">Train Model</h3>
+            <input id="trainTextInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Enter training text here...">
+            <div class="flex gap-2 mb-2">
+                <button id="trainRecordButton" class="btn btn-record">Record Voice</button>
+                <button id="trainReplayButton" class="btn bg-blue-500 text-white">Replay Audio</button>
+                <button id="trainSubmitButton" class="btn bg-purple-500 text-white">Submit Training</button>
+            </div>
+            <audio id="trainAudioPlayback" controls class="hidden"></audio>
         </div>
     </div>
 
@@ -137,5 +149,6 @@
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <script src ="audioConverter.js"></script>
     <script src="voice_assist_util.js"></script>
+    <script src="voice_assist.js"></script>
 </body>
 </html>

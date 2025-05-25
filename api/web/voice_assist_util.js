@@ -95,6 +95,7 @@ async function startRecording() {
                 return;
             }
            // playAudioBlob(audioBlob, audioPlayback, "testing raw audio");
+            statusText.textContent = "Converting the webm to wavip d";
             wavAudioResult = await convertAudioBlob(audioBlob, 'wav');
             //playAudioBlob(wavAudioResult.blob, audioPlayback, "testing wav audio"); 
             await sendAudioToServer(wavAudioResult.blob, wavAudioResult.fileName);

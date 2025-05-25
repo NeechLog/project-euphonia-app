@@ -9,6 +9,9 @@ import io
 import subprocess
 import ffmpeg
 #from dia.Model import Dia
+from gcloud_adapter import call_vertex_Dia_model
+
+
 
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
@@ -23,6 +26,19 @@ logger.debug('Static files url: %s', app.static_url_path)
 logger.debug(' files root: %s', app.root_path)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
+# --- CONFIGURATION ---
+PROJECT_ID = "673305860828"  # Replace with your Project ID
+REGION = "us-central1"    # e.g., "us-central1"
+ENDPOINT_ID = "5200545963357241344"    # Replace with your Endpoint ID
+
+SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
+CFG_SCALE_PARAM = 0.3
+TEMPERATURE_PARAM = 1.3
+TOP_P_PARAM = 0.95
+OUTPUT_FILE_PATH = "output_voice.wav" # Or .mp3, .ogg, etc., depending on your model's output
+
+    # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
+    # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
 @app.route('/process_audio', methods=['POST'])
 def process_audio():
     """
@@ -52,19 +68,24 @@ def process_audio():
         # Create a generator to stream the file back
         def generate():
             try:
-                chunk_size = 4096  # 4KB chunks
-                with open(tmp_file, 'rb') as f:
-                    while True:
-                        chunk = f.read(chunk_size)
-                        if not chunk:
-                            break
-                        yield chunk
-            finally:
-                # Clean up the temporary file
-                try:
-                    os.unlink(tmp_file)
-                except OSError:
-                    pass
+                logger.info("Attempting to call Vertex AI custom model...")
+                voice_data = call_vertex_Dia_model(
+                    project_id=PROJECT_ID,
+                    region=REGION,
+                    endpoint_id=ENDPOINT_ID,
+                     input_text=SAMPLE_TEXT,
+                     cfg_scale=CFG_SCALE_PARAM,
+                         temperature=TEMPERATURE_PARAM,
+                         top_p=TOP_P_PARAM
+                )
+                if voice_data:
+                    logger.debug('Starting audio file streaming')
+                    yield voice_data
+                else:
+                    logger.warning("No voice data received.")
+            except Exception as e:
+                logger.error(f"Example usage failed: {e}")
+            
         
         # Return the file as a stream with original MIME type
         return Response(
@@ -161,6 +182,7 @@ def generate_sound_wave(phrase):
     except Exception as e:
         logger.error(f'Error generating sound wave: {str(e)}', exc_info=True)
         raise
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='localhost', port=50001)
