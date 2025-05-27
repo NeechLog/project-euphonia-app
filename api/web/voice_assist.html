@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Voice Interaction App</title>
+    <title>Voice Assist Training & Cloning</title>
 <!-- TODO: Replace with documented Tailwind CSS in production -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -118,7 +118,7 @@
             <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
             Record Voice
         </button>
-        <button id="trainModelButton" class="btn btn-record ml-4">Train Model</button>
+        <button id="trainModelButton" class="btn btn-record ml-4">Sample voice</button>
 
         <div id="statusText" class="status-text">Press "Record Voice" to start.</div>
 
@@ -130,11 +130,17 @@
 
         <div id="trainin_model" class="mt-6 hidden">
             <h3 class="text-lg font-semibold mb-2">Train Model</h3>
-            <input id="trainTextInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Enter training text here...">
+            <input id="trainTextInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Enter training text here. Ensure it matches with the training audio that you speak. Ideally first type and then record.">
             <div class="flex gap-2 mb-2">
-                <button id="trainRecordButton" class="btn btn-record">Record Voice</button>
-                <button id="trainReplayButton" class="btn bg-blue-500 text-white">Replay Audio</button>
-                <button id="trainSubmitButton" class="btn bg-purple-500 text-white">Submit Training</button>
+                <button id="trainRecordButton" class="btn btn-record">
+                    <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+                    Record Voice</button>
+                <button id="trainReplayButton" class="btn btn-stop">
+                    <img src="icons/stop-filled-icon.svg" alt="Stop" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+                    Replay Audio</button>
+                <button id="trainSubmitButton" class="btn btn-record">
+                    <img src="icons/submit-icon.svg" alt="Submit" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+                    Submit Sample</button>
             </div>
             <audio id="trainAudioPlayback" controls class="hidden"></audio>
         </div>
@@ -149,6 +155,6 @@
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <script src ="audioConverter.js"></script>
     <script src="voice_assist_util.js"></script>
-    <script src="voice_assist.js"></script>
+    <script src="train_util.js"></script>
 </body>
 </html>

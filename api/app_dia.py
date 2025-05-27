@@ -8,6 +8,8 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
+
+
 #from dia.Model import Dia
 from gcloud_adapter import call_vertex_Dia_model
 

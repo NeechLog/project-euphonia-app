@@ -4,7 +4,7 @@ console.log("SERVER_URL: ", SERVER_URL);
 
 // State Management
 let isRecording = false;
-let mediaRecorder;
+let mediaRecorderObj;
 let audioChunks = [];
 let audioStream;
 
@@ -38,6 +38,7 @@ function initVoiceAssist() {
 
 // Toggle recording state
 async function toggleRecording() {
+    console.log("Toggle called" );
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showMessage("getUserMedia not supported on your browser!");
         statusText.textContent = "Microphone access not supported.";
@@ -47,77 +48,88 @@ async function toggleRecording() {
     if (isRecording) {
         stopRecording();
     } else {
-        await startRecording();
+        // Start the recording and destructure the result
+        ({ 
+            mediaRecorder: mediaRecorderObj, 
+            stream: audioStream, 
+            mimeType 
+        } = await startRecording({
+            onStart: () => {
+                isRecording = true;  // Update state
+                updateUIForRecording(true);
+            },
+            onStop: async (blob, mimeType) => {
+                statusText.textContent = "Processing...";
+                const wavResult = await convertAudioBlob(blob, 'wav');
+                await sendAudioToServer(wavResult.blob, wavResult.fileName);
+            },
+            onError: (err) => handleRecordingError(err)
+        }));
     }
 }
-
-// Start audio recording
-async function startRecording() {
+/**
+ * Common method to start audio recording
+ * @param {Object} options - Configuration options
+ * @param {string[]} [options.mimeTypes] - Array of MIME types to try (default: ['audio/webm', 'audio/ogg;codecs=opus', 'audio/wav'])
+ * @param {Function} [options.onStart] - Callback when recording starts
+ * @param {Function} [options.onStop] - Callback with the recorded Blob when recording stops
+ * @param {Function} [options.onError] - Error callback
+ * @param {Function} [options.onDataAvailable] - Callback when data is available
+ * @returns {Promise<{mediaRecorder: MediaRecorder, stream: MediaStream}>} Recording objects
+ */
+async function startRecording(options = {}) {
+    const {
+        mimeTypes = ['audio/webm', 'audio/ogg;codecs=opus', 'audio/wav'],
+        onStart = () => {},
+        onStop = () => {},
+        onError = (err) => console.error('Recording error:', err),
+        onDataAvailable = () => {}
+    } = options;
+    console.log("Start recording called" + options);
     try {
-        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        statusText.textContent = "Microphone access granted. Initializing recorder...";
-//TODO: Need to move these mimetypes and mimetypes with extensions defined in getExtendedMap to 1 place. Then use getExtendedMap to get the mimetypes as well as extensions.
-        const mimeTypes = [
-            'audio/aac',
-            'audio/webm;codecs=opus',
-            'audio/ogg;codecs=opus',
-            'audio/wav',
-            'audio/mp4'
-        ];
-        
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         const selectedMimeType = mimeTypes.find(mt => MediaRecorder.isTypeSupported(mt));
         
         if (!selectedMimeType) {
-            showMessage("No suitable audio format supported by the browser for recording.");
-            statusText.textContent = "Recording format not supported.";
-            if (audioStream) {
-                audioStream.getTracks().forEach(track => track.stop());
-            }
-            return;
+            throw new Error('No supported audio format available');
         }
 
-        mediaRecorder = new MediaRecorder(audioStream, { mimeType: selectedMimeType });
-        audioChunks = [];
-
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: selectedMimeType });
+        const audioChunks = [];
+        console.log("mediaRecorder state", mediaRecorder.state);
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
+                console.log("event.data", event.data)
                 audioChunks.push(event.data);
+                onDataAvailable(event.data);
             }
         };
 
         mediaRecorder.onstop = async () => {
-            statusText.textContent = "Recording stopped. Processing audio...";
             const audioBlob = new Blob(audioChunks, { type: selectedMimeType });
-            
-            if (audioBlob.size === 0) {
-                showMessage("Recorded audio is empty. Please try again.");
-                statusText.textContent = "Recording was empty.";
-                return;
-            }
-           // playAudioBlob(audioBlob, audioPlayback, "testing raw audio");
-            statusText.textContent = "Converting the webm to wavip d";
-            wavAudioResult = await convertAudioBlob(audioBlob, 'wav');
-            //playAudioBlob(wavAudioResult.blob, audioPlayback, "testing wav audio"); 
-            await sendAudioToServer(wavAudioResult.blob, wavAudioResult.fileName);
-            
-            if (audioStream) {
-                audioStream.getTracks().forEach(track => track.stop());
-            }
+            stream.getTracks().forEach(track => track.stop());
+            onStop(audioBlob, selectedMimeType);
+        };
+
+        mediaRecorder.onerror = (event) => {
+            onError(event.error || new Error('Unknown recording error'));
         };
 
         mediaRecorder.start();
-        isRecording = true;
-        updateUIForRecording(true);
+        onStart();
+        return { mediaRecorder, stream, mimeType: selectedMimeType };
 
     } catch (err) {
-        handleRecordingError(err);
+        onError(err);
+        throw err;
     }
 }
 
 // Stop audio recording
 function stopRecording() {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
+    console.log("Stop recording called");
+    if (mediaRecorderObj && mediaRecorderObj.state === "recording") {
+        mediaRecorderObj.stop();
     }
     isRecording = false;
     updateUIForRecording(false);
@@ -125,6 +137,7 @@ function stopRecording() {
 
 // Update UI based on recording state
 function updateUIForRecording(recording) {
+    console.log("Update UI for recording called. Param ",recording);
     if (recording) {
         recordButton.innerHTML = `
             <img src="icons/stop-filled-icon.svg" alt="Stop" class="inline-block mr-2 align-text-bottom" width="20" height="20">
