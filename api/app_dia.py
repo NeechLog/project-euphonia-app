@@ -8,10 +8,11 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
+from gcloudAdapter.gcp_storage import upload_or_update_data_gcs
 
 
 #from dia.Model import Dia
-from gcloud_adapter import call_vertex_Dia_model
+from gcloudAdapter.gcp_models import call_vertex_Dia_model
 
 
 
@@ -28,16 +29,6 @@ logger.debug('Static files url: %s', app.static_url_path)
 logger.debug(' files root: %s', app.root_path)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
-# --- CONFIGURATION ---
-PROJECT_ID = "673305860828"  # Replace with your Project ID
-REGION = "us-central1"    # e.g., "us-central1"
-ENDPOINT_ID = "5200545963357241344"    # Replace with your Endpoint ID
-
-SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
-CFG_SCALE_PARAM = 0.3
-TEMPERATURE_PARAM = 1.3
-TOP_P_PARAM = 0.95
-OUTPUT_FILE_PATH = "output_voice.wav" # Or .mp3, .ogg, etc., depending on your model's output
 
     # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
     # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
@@ -72,13 +63,7 @@ def process_audio():
             try:
                 logger.info("Attempting to call Vertex AI custom model...")
                 voice_data = call_vertex_Dia_model(
-                    project_id=PROJECT_ID,
-                    region=REGION,
-                    endpoint_id=ENDPOINT_ID,
-                     input_text=SAMPLE_TEXT,
-                     cfg_scale=CFG_SCALE_PARAM,
-                         temperature=TEMPERATURE_PARAM,
-                         top_p=TOP_P_PARAM
+                    #input_text= "[S1]"+ processed_text + "[S2] Thank you."
                 )
                 if voice_data:
                     logger.debug('Starting audio file streaming')
@@ -90,6 +75,7 @@ def process_audio():
             
         
         # Return the file as a stream with original MIME type
+        # Todo: a possible bug here, model may not always return wav or input format.hence mime_type should be correctly identified. 
         return Response(
             generate(),
             mimetype=mime_type,
@@ -184,6 +170,66 @@ def generate_sound_wave(phrase):
     except Exception as e:
         logger.error(f'Error generating sound wave: {str(e)}', exc_info=True)
         raise
+
+
+@app.route('/train_audio', methods=['POST'])
+def train_audio():
+    """
+    Endpoint to receive an audio file, text, and hash_id for training.
+    Accepts an audio file in the 'audio' form field, 'text' and 'hash_id' as form data.
+    Returns success/error response.
+    """
+    try:
+        # Check if required parts are present
+        if 'audio' not in request.files:
+            return jsonify({'response': 'error', 'message': 'No audio file part in request'}), 400
+            
+        text = request.form.get('text')
+        hash_id = request.form.get('hash_id')
+        
+        if not text or not hash_id:
+            return jsonify({
+                'response': 'error',
+                'message': 'Both text and hash_id are required parameters'
+            }), 400
+            
+        audio_file = request.files['audio']
+        if audio_file.filename == '':
+            return jsonify({'response': 'error', 'message': 'No selected file'}), 400
+            
+        logger.info(f'Training audio file: {audio_file.filename} for hash_id: {hash_id}')
+        
+        # Read audio file data
+        audio_data = audio_file.read()
+        
+        # Upload to GCS
+        text_url, voice_url = upload_or_update_data_gcs(
+            bucket_name=os.environ.get("EUPHONIA_DIA_GCS_BUCKET", "euphonia-dia"),
+            hash_identifier=hash_id,
+            text_data=text,
+            voice_data_bytes=audio_data,
+            audio_filename=audio_file.filename
+        )
+        
+        if not text_url or not voice_url:
+            return jsonify({
+                'response': 'error',
+                'message': 'Failed to upload training data to storage'
+            }), 500
+            
+        return jsonify({
+            'response': 'success',
+            'message': 'Training data uploaded successfully',
+            'text_url': text_url,
+            'voice_url': voice_url
+        })
+        
+    except Exception as e:
+        logger.error(f'Error in train_audio: {str(e)}', exc_info=True)
+        return jsonify({
+            'response': 'error',
+            'message': f'Failed to process training data: {str(e)}'
+        }), 500
 
 
 if __name__ == '__main__':
