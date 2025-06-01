@@ -8,17 +8,20 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
-from gcloudAdapter.gcp_storage import upload_or_update_data_gcs
+from gcloudAdapter.gcp_storage import upload_or_update_data_gcs, get_oldest_training_data
 
+
+# Default constants
+DEFAULT_HASH_ID = "default_user_123"
+DEFAULT_BUCKET = "euphonia-dia"
 
 #from dia.Model import Dia
-from gcloudAdapter.gcp_models import call_vertex_Dia_model
-
+from gcloudAdapter.gcp_models import call_vertex_Dia_model, synthesize_speech_with_cloned_voice
 
 
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
-logging.basicConfig(level=getattr(logging, log_level, logging.INFO))
+logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__,static_url_path='/web', static_folder='web')
@@ -52,33 +55,54 @@ def process_audio():
         logger.info(f'Processing audio file: {audio_file.filename}')
         mime_type = audio_file.content_type
         
-        # Save the uploaded file to a temporary location
-        _, tmp_file = tempfile.mkstemp(suffix=os.path.splitext(audio_file.filename)[1])
-        audio_file.save(tmp_file)
+        # Get the oldest training data for the default user
+        bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
+        # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
+        # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
+        training_data = get_oldest_training_data(bucket_name, DEFAULT_HASH_ID)
         
-        processed_text = "Echoing back original file"
+        if not training_data:
+            return jsonify({
+                'response': 'error',
+                'message': 'No training data found for the default user. Please ensure both text and voice data are available.'
+            }), 400
+            
+        oldest_text = training_data['text']
+        voice_url = training_data['voice_url']
         
-        # Create a generator to stream the file back
+        # Get the text to synthesize from form or use a default
+        # TODO:  get the whisper and something to generate text from the voice data coming in, - right now that is ignored. 
+        processed_text = "Basically this is cloned voice test. did you hear any thing. If not check vertex log if something happened there."
+        text_to_synthesize = request.form.get('text', processed_text)
+        
+        # Create a generator to stream the synthesized audio
         def generate():
             try:
-                logger.info("Attempting to call Vertex AI custom model...")
-                voice_data = call_vertex_Dia_model(
-                    #input_text= "[S1]"+ processed_text + "[S2] Thank you."
+                logger.info("Attempting to synthesize speech with cloned voice...")
+                logger.debug(f"Using voice URL: {voice_url}")
+                logger.debug(f"Using training text: {oldest_text[:100]}...")
+                
+                # Call the synthesis function
+                voice_data = synthesize_speech_with_cloned_voice(
+                    text_to_synthesize=text_to_synthesize,
+                    clone_from_audio_gcs_url=voice_url,
+                    clone_from_text_transcript=oldest_text
                 )
+                
                 if voice_data:
-                    logger.debug('Starting audio file streaming')
+                    logger.debug(f'Starting audio file streaming, size: {len(voice_data)} bytes')
                     yield voice_data
                 else:
-                    logger.warning("No voice data received.")
+                    logger.warning("No voice data received from synthesis.")
+                    yield b''
             except Exception as e:
-                logger.error(f"Example usage failed: {e}")
-            
+                logger.error(f"Synthesis failed: {str(e)}", exc_info=True)
+                yield b''
         
-        # Return the file as a stream with original MIME type
-        # Todo: a possible bug here, model may not always return wav or input format.hence mime_type should be correctly identified. 
+        # Return the synthesized audio as a stream
         return Response(
             generate(),
-            mimetype=mime_type,
+            mimetype='audio/wav',
             headers={
                 'X-Response-Text': processed_text,
                 'Content-Disposition': f'attachment; filename=processed_{audio_file.filename}'
@@ -187,10 +211,15 @@ def train_audio():
         text = request.form.get('text')
         hash_id = request.form.get('hash_id')
         
-        if not text or not hash_id:
+        # Use default hash_id if not provided
+        if not hash_id:
+            hash_id = DEFAULT_HASH_ID
+            logger.info(f'Using default hash_id: {hash_id}')
+        
+        if not text:
             return jsonify({
                 'response': 'error',
-                'message': 'Both text and hash_id are required parameters'
+                'message': 'Text is a required parameter'
             }), 400
             
         audio_file = request.files['audio']
@@ -203,13 +232,23 @@ def train_audio():
         audio_data = audio_file.read()
         
         # Upload to GCS
-        text_url, voice_url = upload_or_update_data_gcs(
-            bucket_name=os.environ.get("EUPHONIA_DIA_GCS_BUCKET", "euphonia-dia"),
-            hash_identifier=hash_id,
-            text_data=text,
-            voice_data_bytes=audio_data,
-            audio_filename=audio_file.filename
-        )
+        try:
+            bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
+            logger.info(f'Using bucket: {bucket_name}')
+                
+            text_url, voice_url = upload_or_update_data_gcs(
+                bucket_name=bucket_name,
+                hash_identifier=hash_id,
+                text_data=text,
+                voice_data_bytes=audio_data,
+                audio_filename=audio_file.filename
+            )
+        except Exception as e:
+            logger.error(f'GCS upload failed: {str(e)}', exc_info=True)
+            return jsonify({
+                'response': 'error',
+                'message': f'Failed to upload to storage: {str(e)}'
+            }), 500
         
         if not text_url or not voice_url:
             return jsonify({

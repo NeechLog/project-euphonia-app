@@ -360,6 +360,40 @@ def get_oldest_blob_pairs(bucket_name: str, hash_identifier: str) -> Optional[Li
         print(f"An error occurred while fetching available blobs: {e}")
         return None
 
+def get_oldest_training_data(bucket_name: str, hash_identifier: str) -> Optional[dict]:
+    """
+    Retrieves the oldest training data (text and voice URL) for a given hash identifier.
+    
+    Args:
+        bucket_name: The name of the Google Cloud Storage bucket.
+        hash_identifier: The unique identifier for the data.
+        
+    Returns:
+        A dictionary with 'text' and 'voice_url' if found, None otherwise.
+    """
+    try:
+        # Get the oldest text content
+        text_content = get_oldest_text_for_hash(bucket_name, hash_identifier)
+        if not text_content:
+            logger.warning(f"No text content found for hash: {hash_identifier}")
+            return None
+            
+        # Get the oldest voice URL
+        blob_pairs = get_oldest_blob_pairs(bucket_name, hash_identifier)
+        if not blob_pairs or not blob_pairs[0].get('voice_url'):
+            logger.warning(f"No voice URL found for hash: {hash_identifier}")
+            return None
+            
+        return {
+            'text': text_content,
+            'voice_url': blob_pairs[0]['voice_url']
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting oldest training data: {e}")
+        return None
+
+
 def get_oldest_text_for_hash(bucket_name: str, hash_identifier: str) -> Optional[str]:
     """
     Retrieves the text content from the oldest text file for the given hash_identifier.
