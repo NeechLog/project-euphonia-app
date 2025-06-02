@@ -7,6 +7,9 @@ In order to start - edit app_dia.py and set the environment variables.
 - In the app_dia - changed processed_text in process_audio to listen to different sentences. //TODO; Either intergrate transcribe or a text box insteat of voice on front end.
 -- just run app_dia and access http://localhost:50001/web/voice_assist.html 
 
+-- Otherwise, in the api/gCloudAdapter folder, check out gcp_sample_cli.py. In VS code check the launch.json to work this CLI for parameters. 
+-- For everything, ensure gcloud auth is enabled for you. 
+
 
 # Project Euphonia serving model API
 
