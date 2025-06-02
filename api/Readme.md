@@ -1,3 +1,13 @@
+
+-- Additional information
+The web component and integration with voice generation and cloning is done in this api Folder. 
+In order to start - edit app_dia.py and set the environment variables. 
+- Default set up of current cloud storage and vertex API will be available on limited time only.
+- In app_dia - go and change the DEAFULT_HASH_ID to create a new voice sample that can influence the cloned voice. //TODO: Make it user ID driven
+- In the app_dia - changed processed_text in process_audio to listen to different sentences. //TODO; Either intergrate transcribe or a text box insteat of voice on front end.
+-- just run app_dia and access http://localhost:50001/web/voice_assist.html 
+
+
 # Project Euphonia serving model API
 
 Deploy transcription API as service in Google Cloud run:
@@ -84,4 +94,4 @@ Project Euphonia’s open-source toolkits are designed to facilitate the creatio
 - Example code for deploying a web service that performs speech-to-text transcription using the fine-tuned ASR models. The web service can be deployed to cloud platforms such as Google Cloud Run.
 
 -- Additional information
--- just run app_dia and access http://localhost:50001/web/voice_assist.html 
+
