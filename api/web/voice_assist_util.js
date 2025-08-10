@@ -23,7 +23,6 @@ function initVoiceAssist() {
     responseTextElement = document.getElementById('responseText');
     audioPlayback = document.getElementById('audioPlayback');
     messageBox = document.getElementById('messageBox');
-
     // Initial check for browser support
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         recordButton.disabled = true;
@@ -31,13 +30,14 @@ function initVoiceAssist() {
         showMessage("Your browser doesn't support microphone access. Please try a different browser.");
         return;
     }
-
+    loadVoiceModels(document.getElementById('hashVoiceName'));
     // Add event listeners
     recordButton.addEventListener('click', toggleRecording);
 }
 
 // Toggle recording state
 async function toggleRecording() {
+    hideOtherSections(document.getElementById('responseSection'));
     console.log("Toggle called" );
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showMessage("getUserMedia not supported on your browser!");

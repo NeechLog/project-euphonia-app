@@ -119,10 +119,15 @@
             Record Voice
         </button>
         <button id="trainModelButton" class="btn btn-record ml-4">Sample voice</button>
+        <button id="cloneVoiceButton" class="btn btn-record ml-4">Clone Voice</button>
 
         <div id="statusText" class="status-text">Press "Record Voice" to start.</div>
-
-        <div class="response-container">
+        
+        <div id="responseSection" class="response-container">
+            <select id="hashVoiceName" class="border rounded px-3 py-2 w-full mb-2">
+                <option value="">Select a voice owner</option>
+                <!-- Voice models will be populated by JavaScript -->
+            </select>
             <h3>Server Response:</h3>
             <div id="responseText" class="response-text">Waiting for server...</div>
             <audio id="audioPlayback" controls class="hidden"></audio>
@@ -130,6 +135,7 @@
 
         <div id="trainin_model" class="mt-6 hidden">
             <h3 class="text-lg font-semibold mb-2">Train Model</h3>
+            <input id="trainHashInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Write the label for voice sample">
             <input id="trainTextInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Enter training text here. Ensure it matches with the training audio that you speak. Ideally first type and then record.">
             <div class="flex gap-2 mb-2">
                 <button id="trainRecordButton" class="btn btn-record">
@@ -146,6 +152,22 @@
         </div>
     </div>
 
+    <div id="cloneVoiceSection" class="mt-6 hidden">
+        <h3 class="text-lg font-semibold mb-2">Clone Voice</h3>
+        <input id="cloneTextInput" type="text" class="border rounded px-3 py-2 w-full mb-2" placeholder="Enter text to clone">
+        <select id="voiceModelSelect" class="border rounded px-3 py-2 w-full mb-2">
+            <option value="">Select a voice owner</option>
+            <!-- Voice models will be populated by JavaScript -->
+        </select>
+        <div class="flex gap-2 mb-2">
+            <button id="generateVoiceButton" class="btn btn-record">
+                <img src="icons/generate-icon.svg" alt="Generate" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+                Generate Voice
+            </button>
+        </div>
+        <audio id="clonedVoicePlayback" controls class="w-full mt-2"></audio>
+    </div>
+
     <div id="messageBox" class="message-box"></div>
 
     <!-- Include the external JavaScript file -->
@@ -154,7 +176,9 @@
     <script src="ffmpeg_conversion_functions.js"></script-->
     <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
     <script src ="audioConverter.js"></script>
+    <script src="utils.js"></script>
     <script src="voice_assist_util.js"></script>
     <script src="train_util.js"></script>
+    <script src="clone_util.js"></script>
 </body>
 </html>

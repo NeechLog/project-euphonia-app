@@ -512,6 +512,38 @@ def reconstruct_gcs_object_url(
     
     return f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
 
+def list_all_hash_identifiers(bucket_name: str) -> List[str]:
+    """
+    Lists all unique hash identifiers (folders) in the specified GCS bucket.
+    
+    Args:
+        bucket_name: The name of the Google Cloud Storage bucket.
+        
+    Returns:
+        A list of unique hash identifiers (strings) found in the bucket.
+        Returns an empty list if no hashes are found or if there's an error.
+    """
+    logger.info(f"Listing all hash identifiers in bucket: {bucket_name}")
+    try:
+        storage_client = storage.Client()
+        blobs = storage_client.list_blobs(bucket_name, delimiter='/')
+        
+        # Extract unique prefixes (hash identifiers)
+        hash_identifiers = set()
+        for page in blobs.pages:
+            for prefix in page.prefixes:
+                # Remove the trailing '/' from the prefix
+                hash_id = prefix.rstrip('/')
+                if hash_id:  # Skip empty prefixes
+                    hash_identifiers.add(hash_id)
+        
+        logger.info(f"Found {len(hash_identifiers)} unique hash identifiers")
+        return sorted(list(hash_identifiers))
+        
+    except Exception as e:
+        logger.error(f"Error listing hash identifiers: {str(e)}")
+        return []
+
 # --- Example Usage ---
 if __name__ == "__main__":
     GCS_BUCKET_NAME = os.environ.get("EUPHONIA_DIA_GCS_BUCKET")

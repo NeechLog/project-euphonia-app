@@ -6,8 +6,9 @@ from google.cloud import aiplatform
 # --- CONFIGURATION ---
 PROJECT_ID = "673305860828"  # Replace with your Project ID
 REGION = "us-central1"    # e.g., "us-central1"
-ENDPOINT_ID = "5200545963357241344"    # Replace with your Endpoint ID
-
+ENDPOINT_ID = "5388067671474438144"    # Replace with your Endpoint ID
+## Mark it True if vertex is up. But for only GCP_storage commands keep it false.
+DIADeployed = True
 SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 config_SCALE_PARAM = 0.3
 TEMPERATURE_PARAM = 1.3
@@ -16,9 +17,10 @@ TOP_P_PARAM = 0.95
 logger = logging.getLogger(__name__)
 try:
 
-    aiplatform.init(project=PROJECT_ID, location=REGION)
-    endpoint = aiplatform.Endpoint(endpoint_name=ENDPOINT_ID)
-    logger.info(f"Successfully initialized endpoint: {endpoint.resource_name}")
+    if(DIADeployed):
+        aiplatform.init(project=PROJECT_ID, location=REGION)
+        endpoint = aiplatform.Endpoint(endpoint_name=ENDPOINT_ID)
+        logger.info(f"Successfully initialized endpoint: {endpoint.resource_name}")
 except Exception as e:
     logger.error(f"Failed to initialize endpoint: {e}")
     raise

@@ -8,7 +8,7 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
-from gcloudAdapter.gcp_storage import upload_or_update_data_gcs, get_oldest_training_data
+from gcloudAdapter.gcp_storage import upload_or_update_data_gcs, get_oldest_training_data, list_all_hash_identifiers
 
 
 # Default constants
@@ -150,13 +150,33 @@ def transcribe():
 @app.route('/gendia', methods=['POST'])
 def gendia():
     try:
-        phrase = request.json.get('phrase')
+        phrase = request.form.get('phrase')
         if not phrase:
             logger.error('No phrase provided in request')
             return jsonify({'response': 'error', 'message': 'No phrase provided'}), 400
 
         logger.info(f'Received gendia request with phrase: {phrase}')
-        return Response(generate_sound_wave(phrase), mimetype='audio/wav')
+        hash_id = request.form.get('hash_id')
+        
+        # Use default hash_id if not provided
+        if not hash_id:
+            hash_id = DEFAULT_HASH_ID
+            logger.info(f'Using default hash_id: {hash_id}')
+
+        bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
+        training_data = get_oldest_training_data(bucket_name, hash_id)
+        if not training_data:
+            return jsonify({
+                'response': 'error',
+                'message': 'No training data found for the user. Please ensure both text and voice data are available.'
+            }), 400
+
+        voice_data = synthesize_speech_with_cloned_voice(
+                    text_to_synthesize=phrase,
+                    clone_from_audio_gcs_url=training_data['voice_url'],
+                    clone_from_text_transcript=training_data['text']
+                )
+        return Response(voice_data, mimetype='audio/wav')
     except Exception as e:
         logger.error(f'Error processing gendia request: {str(e)}', exc_info=True)
         return jsonify({'response': 'error', 'message': str(e)}), 500
@@ -208,14 +228,7 @@ def train_audio():
         if 'audio' not in request.files:
             return jsonify({'response': 'error', 'message': 'No audio file part in request'}), 400
             
-        text = request.form.get('text')
-        hash_id = request.form.get('hash_id')
-        
-        # Use default hash_id if not provided
-        if not hash_id:
-            hash_id = DEFAULT_HASH_ID
-            logger.info(f'Using default hash_id: {hash_id}')
-        
+        text = request.form.get('text')    
         if not text:
             return jsonify({
                 'response': 'error',
@@ -225,12 +238,16 @@ def train_audio():
         audio_file = request.files['audio']
         if audio_file.filename == '':
             return jsonify({'response': 'error', 'message': 'No selected file'}), 400
-            
-        logger.info(f'Training audio file: {audio_file.filename} for hash_id: {hash_id}')
-        
+                
         # Read audio file data
         audio_data = audio_file.read()
-        
+        #get Hash
+        hash_id = request.form.get('hash_id')       
+        # Use default hash_id if not provided
+        if not hash_id:
+            hash_id = DEFAULT_HASH_ID
+            logger.info(f'Using default hash_id: {hash_id}')
+        logger.info(f'Training audio file: {audio_file.filename} for hash_id: {hash_id}')
         # Upload to GCS
         try:
             bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
@@ -268,6 +285,38 @@ def train_audio():
         return jsonify({
             'response': 'error',
             'message': f'Failed to process training data: {str(e)}'
+        }), 500
+
+
+@app.route('/get_voice_models', methods=['GET'])
+def get_voice_models():
+    """
+    Endpoint to retrieve a list of all available voice models (hash identifiers) from the GCS bucket.
+    
+    Returns:
+        JSON response containing a list of voice model identifiers.
+        Example: {"voice_models": ["model1", "model2", ...]}
+    """
+    try:
+        # First try to get bucket name from request parameters, then from environment, then use default
+        bucket_name = request.args.get('bucket') or os.getenv('EUPHONIA_DIA_GCS_BUCKET', DEFAULT_BUCKET)
+        logger.info(f"Fetching all voice models from bucket: {bucket_name}")
+        
+        # Get all hash identifiers (voice models)
+        voice_models = list_all_hash_identifiers(bucket_name)
+        
+        logger.info(f"Found {len(voice_models)} voice models")
+        return jsonify({
+            'status': 'success',
+            'voice_models': voice_models
+        })
+        
+    except Exception as e:
+        error_msg = f"Error fetching voice models: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({
+            'status': 'error',
+            'message': error_msg
         }), 500
 
 

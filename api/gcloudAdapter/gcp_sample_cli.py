@@ -29,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 from google.cloud import aiplatform
-from gcp_storage import upload_or_update_data_gcs, download_data_from_gcs, get_oldest_blob_pairs
+from gcp_storage import upload_or_update_data_gcs, download_data_from_gcs, get_oldest_blob_pairs, list_all_hash_identifiers
 from gcp_models import (
     call_vertex_Dia_model,
     synthesize_speech_with_cloned_voice,
@@ -38,7 +38,8 @@ from gcp_models import (
     ENDPOINT_ID,
     config_SCALE_PARAM,
     TEMPERATURE_PARAM,
-    TOP_P_PARAM
+    TOP_P_PARAM,
+    DIADeployed
 )
 
 # Configure logging
@@ -50,10 +51,10 @@ logger = logging.getLogger(__name__)
 
 # Initialize Vertex AI
 try:
-    #ensure_gcloud_credentials()
-    aiplatform.init(project=PROJECT_ID, location=REGION)
-    endpoint = aiplatform.Endpoint(endpoint_name=ENDPOINT_ID)
-    logger.info(f"Successfully initialized Vertex AI endpoint: {endpoint.resource_name}")
+    if(DIADeployed):
+        aiplatform.init(project=PROJECT_ID, location=REGION)
+        endpoint = aiplatform.Endpoint(endpoint_name=ENDPOINT_ID)
+        logger.info(f"Successfully initialized Vertex AI endpoint: {endpoint.resource_name}")
 except Exception as e:
     logger.error(f"Failed to initialize Vertex AI endpoint: {e}")
     endpoint = None
@@ -218,6 +219,30 @@ def list_samples(bucket_name: str, hash_id: str) -> Tuple[bool, str]:
         return False, f"Failed to list samples: {str(e)}"
 
 
+def list_all_hashes(bucket_name: str) -> Tuple[bool, str]:
+    """List all unique hash identifiers in the specified bucket.
+    
+    Args:
+        bucket_name: Name of the GCS bucket
+        
+    Returns:
+        Tuple of (success, message)
+    """
+    try:
+        hashes = list_all_hash_identifiers(bucket_name)
+        if not hashes:
+            return True, "No hash identifiers found in the bucket."
+            
+        message = ["Hash identifiers in the bucket:", ""]
+        for hash_id in hashes:
+            message.append(f"- {hash_id}")
+            
+        message.append(f"\nTotal: {len(hashes)} hash identifiers")
+        return True, "\n".join(message)
+    except Exception as e:
+        return False, f"Error listing hash identifiers: {str(e)}"
+
+
 def get_bucket_name(args_bucket: Optional[str] = None) -> str:
     """Get bucket name from args or environment variable."""
     if args_bucket:
@@ -332,7 +357,10 @@ def main():
         gcp_sample_cli.py download sample123 --random 123456
         
         # List all available hash IDs
-        gcp_sample_cli.py list
+        gcp_sample_cli.py list-hashes
+        
+        # List all hash IDs in the bucket
+        gcp_sample_cli.py list-hashes
         
         # List versions for a specific hash ID
         gcp_sample_cli.py list sample123
@@ -421,17 +449,37 @@ Environment Variables:
     download_parser.add_argument('--output-dir', default='.', help='Directory to save downloaded files')
     download_parser.add_argument('--random', type=int, help='Optional random number for specific version')
     
-    # List command
-    list_parser = subparsers.add_parser(
-        'list',
-        help='List versions of a specific sample',
-        description='List all versions of a specific sample in the bucket.',
+    # List hashes command
+    list_hashes_parser = subparsers.add_parser(
+        'list-hashes',
+        help='List all hash IDs in the bucket',
+        description='List all unique hash identifiers (folders) in the specified GCS bucket.',
         epilog='''Examples:
-  # List all versions of a specific sample
-  %(prog)s --bucket my-bucket sample123
+  # List all hash IDs in the bucket
+  %(prog)s list-hashes
+  
+  # List hash IDs in a specific bucket
+  %(prog)s list-hashes --bucket my-bucket
         '''
     )
-    list_parser.add_argument('hash_id', help='Hash ID of the sample to list versions for')
+    
+    # List command (for backward compatibility and specific hash ID listing)
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List sample versions for a specific hash ID',
+        description='List available sample versions for a specific hash ID.',
+        epilog='''Examples:
+  # List versions for a specific hash ID
+  %(prog)s list sample123
+  
+  # List versions for a hash ID in a specific bucket
+  %(prog)s list sample123 --bucket my-bucket
+        '''
+    )
+    list_parser.add_argument(
+        'hash_id',
+        help='Hash ID to list versions for'
+    )
     
     # Generate speech command
     generate_parser = subparsers.add_parser(
@@ -513,9 +561,15 @@ Environment Variables:
                 output_dir=args.output_dir,
                 random_num=args.random
             )
+        elif args.command == 'list-hashes':
+            bucket_name = get_bucket_name(args.bucket)
+            success, message = list_all_hashes(bucket_name)
         elif args.command == 'list':
             bucket_name = get_bucket_name(args.bucket)
-            success, message = list_samples(bucket_name, args.hash_id)
+            if not args.hash_id:
+                success, message = list_all_hashes(bucket_name)
+            else:
+                success, message = list_samples(bucket_name, args.hash_id)
         elif args.command == 'generate':
             if endpoint is None:
                 logger.error("Failed to initialize Vertex AI endpoint for generate command. Check your configuration and ensure Vertex AI API is enabled.")

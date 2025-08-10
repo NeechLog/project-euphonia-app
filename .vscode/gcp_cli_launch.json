@@ -1,7 +1,6 @@
 {
     "version": "0.2.0",
     "configurations": [
-        
         {
             "name": "Python: Current File",
             "type": "debugpy",
@@ -17,19 +16,23 @@
             "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
             "args": [
                 "--bucket", "${input:gcsBucket}",
-                "--verbose",
                 "upload",
                 "${input:sampleId}",
                 "${input:textFile}",
                 "${input:voiceFile}",
-
+                "--random", "${input:randomNumber}",
+                "--verbose"
             ],
             "console": "integratedTerminal",
             "justMyCode": true,
+            "env": {
+                "GOOGLE_APPLICATION_CREDENTIALS": "${input:gcpCredentials}",
+                "EUPHONIA_DIA_GCS_BUCKET": "${input:gcsBucket}"
+            }
         },
         {
             "name": "Download Sample",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
             "args": [
@@ -42,33 +45,20 @@
             "justMyCode": true
         },
         {
-            "name": "List Sample Versions",
-            "type": "debugpy",
+            "name": "List Samples",
+            "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
             "args": [
                 "--bucket", "${input:gcsBucket}",
-                "list",
-                "${input:sampleId}"
-            ],
-            "console": "integratedTerminal",
-            "justMyCode": true
-        },
-        {
-            "name": "List All Hashes",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
-            "args": [
-                "--bucket", "${input:gcsBucket}",
-                "list-hashes"
+                "list"
             ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
             "name": "Generate Speech",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
             "args": [
@@ -82,7 +72,7 @@
         },
         {
             "name": "Clone Voice",
-            "type": "debugpy",
+            "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/api/gcloudAdapter/gcp_sample_cli.py",
             "args": [
@@ -120,13 +110,13 @@
             "id": "textFile",
             "type": "promptString",
             "description": "Path to text file",
-            "default": "/Users/gagan/projects/work/project-euphonia-app/assets/suresh_initial_sample.txt"
+            "default": "${workspaceFolder}/sample.txt"
         },
         {
             "id": "voiceFile",
             "type": "promptString",
             "description": "Path to voice file",
-            "default": "/Users/gagan/projects/work/project-euphonia-app/assets/suresh_initial_sample.mp3"
+            "default": "${workspaceFolder}/sample.wav"
         },
         {
             "id": "randomNumber",
@@ -144,14 +134,13 @@
             "id": "voiceSamplePath",
             "type": "promptString",
             "description": "Path to voice sample in GCS (without gs://bucket/)",
-            "default": "default_user_123/converted_audio_voice_0.wav"
+            "default": "voice_samples/sample1.wav"
         },
         {
             "id": "transcriptText",
             "type": "promptString",
             "description": "Transcript of the voice sample",
-           // "default": "Hi, I am Suresh Kabra, founder of clk2c.com and in this brief video, which you should be watching on your mobile, I will explain to you that how my company can help you to scale business and acquire new customers by showing your video advertisement directly on your mobile. Let me illustrate with an example. We just did a mobile video campaign for one of the largest real estate companies in India. This is how their video advertisement plays on my handset. Now that this brand has found a permanent place in my mobile, I can play their video advertisement at any time, at my own convenience, at any place. It is not just about showing your video advertisement on the mobile, we know much more. The brand advertising gets to know who and from where have downloaded their mobile video. This data is available in real time on our server as qualified leads. Not just video advertisement, we can enable you to send your business invitations or personal invitations, like wedding cards, to your guest directly as video on mobile. Just like you are watching clk2c.com promotion on your handset, your customers could be watching your brand promotion on their handsets."
-            "default": "These changes make the function more predictable for testing while still allowing for customization through environment variables when needed. The default values can be easily modified by changing the constants at the top of the function."
-        },
+            "default": "This is a sample recording for voice cloning."
+        }
     ]
 }

@@ -2,7 +2,7 @@
 // This file is loaded after voice_assist_util.js in HTML
 
 // Training model UI and state
-let trainModelButton, trainModelDiv, trainTextInput, trainRecordButton, trainReplayButton, trainSubmitButton, trainAudioPlayback;
+let trainModelButton, trainModelDiv, trainTextInput, trainHashInput,trainRecordButton, trainReplayButton, trainSubmitButton, trainAudioPlayback;
 let isTrainRecording = false;
 let trainMediaRecorder;
 let trainAudioChunks = [];
@@ -13,14 +13,15 @@ function initTrainModelUI() {
     trainModelButton = document.getElementById('trainModelButton');
     trainModelDiv = document.getElementById('trainin_model');
     trainTextInput = document.getElementById('trainTextInput');
+    trainHashInput = document.getElementById('trainHashInput');
     trainRecordButton = document.getElementById('trainRecordButton');
     trainReplayButton = document.getElementById('trainReplayButton');
     trainSubmitButton = document.getElementById('trainSubmitButton');
     trainAudioPlayback = document.getElementById('trainAudioPlayback');
 
     trainModelButton.addEventListener('click', () => {
-        trainModelDiv.classList.remove('hidden');
-        trainModelButton.disabled = true;
+        hideOtherSections(trainModelDiv);
+        loadVoiceModels(document.getElementById('hashNameInput'));
     });
     trainRecordButton.addEventListener('click', toggleTrainRecording);
     trainReplayButton.addEventListener('click', replayTrainAudio);
@@ -89,6 +90,11 @@ async function submitTrainData() {
         alert('Please enter training text!');
         return;
     }
+    const hashName = trainHashInput.value.trim();
+    if (!hashName) {
+        alert('Going ahead with default hash');
+        
+    } 
     // Convert to WAV using the same util as main app
     if (typeof convertAudioBlob === 'function') {
         const wavResult = await convertAudioBlob(trainAudioBlob, 'wav');
@@ -96,17 +102,20 @@ async function submitTrainData() {
             alert('Audio conversion failed!');
             return;
         }
-        sendTrainAudioToServer(wavResult.blob, wavResult.fileName, text);
+        sendTrainAudioToServer(wavResult.blob, wavResult.fileName, text, hashName);
     } else {
         // fallback: send webm
-        sendTrainAudioToServer(trainAudioBlob, 'train_audio.webm', text);
+        sendTrainAudioToServer(trainAudioBlob, 'train_audio.webm', text,hashName);
     }
 }
 
-async function sendTrainAudioToServer(audioBlob, fileName, text) {
+async function sendTrainAudioToServer(audioBlob, fileName, text, hashName) {
     const formData = new FormData();
     formData.append('audio', audioBlob, fileName);
     formData.append('text', text);
+    if(hashName) {
+        formData.append('hash_id',hashName);
+    }
     try {
         const response = await fetch(window.location.origin + '/train_audio', {
             method: 'POST',
@@ -119,6 +128,7 @@ async function sendTrainAudioToServer(audioBlob, fileName, text) {
             trainTextInput.value = '';
             trainAudioBlob = null;
             trainAudioPlayback.classList.add('hidden');
+            addVoiceModelToCache(hashName)
         } else {
             alert('Failed to submit training data.');
         }
