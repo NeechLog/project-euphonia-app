@@ -1,4 +1,5 @@
 import logging
+from re import A
 from flask import Flask, request, jsonify
 import os
 import tempfile
@@ -8,17 +9,21 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
-from gcloudAdapter.gcp_storage import upload_or_update_data_gcs, get_oldest_training_data, list_all_hash_identifiers
+
 
 
 # Default constants
 DEFAULT_HASH_ID = "default_user_123"
 DEFAULT_BUCKET = "euphonia-dia"
+STORAGE = "local" # or "gcs" or "e2ebucket"
+if(STORAGE == "gcs"):
+    from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
+elif(STORAGE=="e2ebucket"):
+    from e2ecloudAdapter.e2e_storage import upload_or_update_data_gcs, get_oldest_training_data, list_all_hash_identifiers
+elif(STORAGE=="local"):
+    from local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 
-#from dia.Model import Dia
 from gcloudAdapter.gcp_models import call_vertex_Dia_model, synthesize_speech_with_cloned_voice
-
-
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -253,7 +258,7 @@ def train_audio():
             bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
             logger.info(f'Using bucket: {bucket_name}')
                 
-            text_url, voice_url = upload_or_update_data_gcs(
+            text_url, voice_url = upload_or_update_data(
                 bucket_name=bucket_name,
                 hash_identifier=hash_id,
                 text_data=text,
