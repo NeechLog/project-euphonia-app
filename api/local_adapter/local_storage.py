@@ -49,7 +49,7 @@ def _write_file(directory: str, file_name: str, data: bytes, content_type: str) 
         mode = 'w' if content_type.startswith('text/') else 'wb'
         
         with open(file_path, mode) as f:
-            f.write(data if isinstance(data, (str, bytes)) else str(data))
+            f.write(data)
             
         logger.info(f"Successfully wrote to {file_path}")
         return f"file://{os.path.abspath(file_path)}"

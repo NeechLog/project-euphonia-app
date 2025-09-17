@@ -9,6 +9,9 @@ This script provides commands to:
 - Clone voices from existing samples
 """
 
+import debugpy
+debugpy.listen(("0.0.0.0", 5678))
+debugpy.wait_for_client()
 import argparse
 import logging
 import os
