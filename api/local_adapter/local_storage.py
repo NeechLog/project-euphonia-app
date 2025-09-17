@@ -37,7 +37,7 @@ def _get_random_number() -> int:
     logger.debug(f"Generated random number: {num}")
     return num
 
-def _write_file(directory: str, file_name: str, data: bytes, content_type: str) -> str:
+def _write_file(directory: str, file_name: str, data: Union[str, bytes], content_type: str) -> str:
     """Helper function to write data to a file."""
     logger.debug(f"Writing to file: {file_name} with content type: {content_type}")
     try:
@@ -170,7 +170,7 @@ def upload_or_update_data_local(
 
         # Write text data
         logger.info(f"Writing text data to {text_filename}")
-        text_url = _write_file(target_dir, text_filename, text_data.encode('utf-8'), text_content_type)
+        text_url = _write_file(target_dir, text_filename, text_data, text_content_type)
         logger.info(f"Successfully wrote text data to {text_url}")
 
         # Write voice data
