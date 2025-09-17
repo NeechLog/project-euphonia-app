@@ -37,7 +37,7 @@ def _get_random_number() -> int:
     logger.debug(f"Generated random number: {num}")
     return num
 
-def _write_file(directory: str, file_name: str, data: Union[str, bytes], content_type: str) -> str:
+def _write_file(directory: str, file_name: str, data: str | byte, content_type: str) -> str:
     """Helper function to write data to a file."""
     logger.debug(f"Writing to file: {file_name} with content type: {content_type}")
     try:
