@@ -1,12 +1,112 @@
 {
     "version": "0.2.0",
     "configurations": [
-        
+        {
+            "name": "Python: Remote Attach",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "${workspaceFolder}/api",
+                    "remoteRoot": "."
+                }
+            ],
+            "justMyCode": true
+        },
         {
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
             "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local Upload Sample",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "--bucket", "${input:localBucket}",
+                "--verbose",
+                "upload",
+                "${input:sampleId}",
+                "${input:textFile}",
+                "${input:voiceFile}"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local Download Sample",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "--bucket", "${input:localBucket}",
+                "download",
+                "${input:sampleId}",
+                "--output-dir", "${workspaceFolder}/downloads"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local List Sample Versions",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "--bucket", "${input:localBucket}",
+                "list",
+                "${input:sampleId}"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local List All Hashes",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "--bucket", "${input:localBucket}",
+                "list-hashes"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local Generate Speech",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "generate",
+                "${input:textToSpeak}",
+                "${workspaceFolder}/output.wav",
+                "--temperature", "0.7"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Local Clone Voice",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
+            "args": [
+                "--bucket", "${input:localBucket}",
+                "clone-voice",
+                "${input:textToSpeak}",
+                "${input:localBucket}/${input:voiceSamplePath}",
+                "${input:transcriptText}",
+                "${workspaceFolder}/cloned_voice.wav"
+            ],
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -21,11 +121,10 @@
                 "upload",
                 "${input:sampleId}",
                 "${input:textFile}",
-                "${input:voiceFile}",
-
+                "${input:voiceFile}"
             ],
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": true
         },
         {
             "name": "Download Sample",
@@ -103,6 +202,12 @@
             "type": "promptString",
             "description": "Enter GCS bucket name",
             "default": "euphonia-dia"
+        },
+        {
+            "id": "localBucket",
+            "type": "promptString",
+            "description": "Enter local directory path",
+            "default": "/Users/gagan/projects/work/project-euphonia-app/samples/"
         },
         {
             "id": "gcpCredentials",
