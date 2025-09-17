@@ -1,0 +1,20 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "cryptography>=46.0.1",
+    "ctranslate2==4.6.0",
+    "faster-whisper==1.1.1",
+    "ffmpeg-python>=0.2.0",
+    "flask>=1.0.0",
+    "google-cloud>=0.34.0",
+    "google-cloud-aiplatform>=1.0.0",
+    "python-jose[cryptography]>=3.5.0",
+    "requests>=2.32.5",
+    "soundfile>=0.13.1",
+    "torch>=2.8.0",
+    "transformers>=4.56.1",
+]
