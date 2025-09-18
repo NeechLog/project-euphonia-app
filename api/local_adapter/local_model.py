@@ -51,8 +51,8 @@ class TransformerTTS:
     def synthesize(
         self, 
         text: str,
-        audio_prompt :bytes,
-        clone_from_text,
+        audio_prompt :bytes = None,
+        clone_from_text :str = None,
         max_new_tokens: int = 3072,
         guidance_scale: float = 3.0,
         temperature: float = 1.8,
