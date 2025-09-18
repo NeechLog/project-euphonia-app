@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 GUIDANCE_SCALE_PARAM = 3.0
 TEMPERATURE_PARAM = 1.8
-TOP_P_PARAM = 0.90
+TOP_P_PARAM = 0.95
 # Constants
 DEFAULT_SAMPLE_RATE = 24000  # Common sample rate for TTS model
 # Global instance and lock for thread-safe singleton
@@ -102,16 +102,15 @@ class TransformerTTS:
                 
             try:
                 logger.info(f"Loading TTS model from {self.model_checkpoint}...")
-            self.processor = AutoProcessor.from_pretrained(self.model_checkpoint)
-            self.model = DiaForConditionalGeneration.from_pretrained(self.model_checkpoint).to(self.device)
-            logger.info("TTS model and vocoder loaded successfully")
-            return True
-                
-        except Exception as e:
-            logger.error(f"Failed to load TTS model: {str(e)}")
+                self.processor = AutoProcessor.from_pretrained(self.model_checkpoint)
+                self.model = DiaForConditionalGeneration.from_pretrained(self.model_checkpoint).to(self.device)
+                logger.info("TTS model and vocoder loaded successfully")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to load TTS model: {str(e)}")
                 self.model = None
                 self.processor = None
-            return False
+                return False
     
     def synthesize(
         self, 
@@ -140,19 +139,18 @@ class TransformerTTS:
                 Tuple of (audio_array, sample_rate)
             """
             with self._lock:
-            try:
-                if(audio_prompt):
-                    inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
-                else:
-                    inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
-                outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
-                logger.info(f"Synthesizing speech for text: {text[:50]}...")
-                audio_array = self.processor.batch_decode(outputs)
-                return audio_array, self.sample_rate
-                
-            except Exception as e:
-                logger.error(f"Speech synthesis failed: {str(e)}")
-                raise
+                try:
+                    if(audio_prompt):
+                        inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
+                    else:
+                        inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
+                    outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
+                    logger.info(f"Synthesizing speech for text: {text[:50]}...")
+                    audio_array = self.processor.batch_decode(outputs)
+                    return audio_array, self.sample_rate 
+                except Exception as e:
+                    logger.error(f"Speech synthesis failed: {str(e)}")
+                    raise
 
 def synthesize_speech_with_cloned_voice(
     text_to_synthesize: str,
