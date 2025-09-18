@@ -35,6 +35,9 @@ class TransformerTTS:
         """
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_checkpoint = "nari-labs/Dia-1.6B-0626"
+        self.model = None  # Initialize model as None
+        self.processor = None
+        self.sample_rate = 24000  # Assuming default sample rate
       
     
     def load_model(self):
@@ -74,8 +77,8 @@ class TransformerTTS:
             Returns:
                 Tuple of (audio_array, sample_rate)
             """
-            if self.model is None:
-                if not self.load_model():
+            if not hasattr(self, 'model') or self.model is None:
+                 if not self.load_model():
                     raise RuntimeError("Failed to load TTS model")
             
             try:
