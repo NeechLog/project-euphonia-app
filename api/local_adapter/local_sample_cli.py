@@ -179,9 +179,9 @@ def list_all_hashes(base_dir: str) -> Tuple[bool, str]:
 def generate_speech(
     text: str,
     output_file: str,
-    config_scale: float = 0.3,
-    temperature: float = 1.3,
-    top_p: float = 0.95
+    config_scale: float = 3.0,
+    temperature: float = 1.8,
+    top_p: float = 0.90
 ) -> Tuple[bool, str]:
     """Generate speech from text using the local Dia model.
     

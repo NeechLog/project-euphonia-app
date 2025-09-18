@@ -6,7 +6,8 @@ from pathlib import Path
 import requests
 from urllib.parse import urlparse
 import os
-
+import threading
+import atexit
 from transformers import AutoProcessor, DiaForConditionalGeneration
 
 # Configure logging
@@ -16,11 +17,60 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
-config_SCALE_PARAM = 0.3
-TEMPERATURE_PARAM = 1.3
-TOP_P_PARAM = 0.95
+GUIDANCE_SCALE_PARAM = 3.0
+TEMPERATURE_PARAM = 1.8
+TOP_P_PARAM = 0.90
 # Constants
-DEFAULT_SAMPLE_RATE = 24000  # Common sample rate for TTS models
+DEFAULT_SAMPLE_RATE = 24000  # Common sample rate for TTS model
+# Global instance and lock for thread-safe singleton
+_tts_instance = None
+_tts_lock = threading.Lock()
+
+def get_tts_instance() -> 'TransformerTTS':
+    """
+    Get or create a thread-safe singleton instance of TransformerTTS.
+    
+    Returns:
+        TransformerTTS: A shared instance of the TTS model
+        
+    Raises:
+        RuntimeError: If model loading fails
+    """
+    global _tts_instance
+    
+    if _tts_instance is None:
+        with _tts_lock:  # Ensure thread safety during initialization
+            if _tts_instance is None:  # Double-checked locking pattern
+                logger.info("Initializing TTS model...")
+                _tts_instance = TransformerTTS()
+                if not _tts_instance.load_model():
+                    _tts_instance = None
+                    raise RuntimeError("Failed to load TTS model")
+                logger.info("TTS model initialized successfully")
+    
+    return _tts_instance
+
+def cleanup_tts_instance():
+    """
+    Clean up the global TTS instance and free resources.
+    """
+    global _tts_instance
+    
+    if _tts_instance is not None:
+        with _tts_lock:
+            if _tts_instance is not None:
+                logger.info("Cleaning up TTS model...")
+                if hasattr(_tts_instance, 'model'):
+                    # Move model to CPU and clear CUDA cache if using GPU
+                    if torch.cuda.is_available():
+                        _tts_instance.model.to('cpu')
+                        torch.cuda.empty_cache()
+                    del _tts_instance.model
+                _tts_instance = None
+                logger.info("TTS model cleaned up")
+
+# Add cleanup on module unload
+atexit.register(cleanup_tts_instance)
 
 class TransformerTTS:
     """Base class for transformer-based text-to-speech synthesis."""
@@ -29,26 +79,38 @@ class TransformerTTS:
         """
         Initialize the TTS model.
         
-        Args:
-            model_path: Path to the pre-trained model. If None, uses default location.
-            device: Device to run the model on ('cuda' or 'cpu'). Auto-detects if None.
+        Note: Use get_tts_instance() instead of direct instantiation.
         """
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         self.model_checkpoint = "nari-labs/Dia-1.6B-0626"
-        self.model = None  # Initialize model as None
+        self.model = None
         self.processor = None
-        self.sample_rate = 24000  # Assuming default sample rate
+        self.sample_rate = 24000
+        self._lock = threading.Lock()  # Instance-level lock for thread safety
       
     
-    def load_model(self):
-        """Load the TTS model and vocoder."""
-        try:
+    def load_model(self) -> bool:
+        """
+        Load the TTS model and processor.
+        
+        Returns:
+            bool: True if loading was successful, False otherwise
+        """
+        with self._lock:
+            if self.model is not None:
+                return True
+                
+            try:
+                logger.info(f"Loading TTS model from {self.model_checkpoint}...")
             self.processor = AutoProcessor.from_pretrained(self.model_checkpoint)
             self.model = DiaForConditionalGeneration.from_pretrained(self.model_checkpoint).to(self.device)
             logger.info("TTS model and vocoder loaded successfully")
             return True
+                
         except Exception as e:
             logger.error(f"Failed to load TTS model: {str(e)}")
+                self.model = None
+                self.processor = None
             return False
     
     def synthesize(
@@ -77,10 +139,7 @@ class TransformerTTS:
             Returns:
                 Tuple of (audio_array, sample_rate)
             """
-            if not hasattr(self, 'model') or self.model is None:
-                 if not self.load_model():
-                    raise RuntimeError("Failed to load TTS model")
-            
+            with self._lock:
             try:
                 if(audio_prompt):
                     inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
@@ -99,9 +158,9 @@ def synthesize_speech_with_cloned_voice(
     text_to_synthesize: str,
     clone_from_audio_gcs_url: str,
     clone_from_text_transcript: str,
-    config_scale: float = 0.3,
-    temperature: float = 1.3,
-    top_p: float = 0.95
+    config_scale: float = 3.0,
+    temperature: float = 1.8,
+    top_p: float = 0.90
 ) -> bytes | None:
     """
     Generates speech audio by cloning a voice from an audio sample and its transcript
@@ -135,12 +194,11 @@ def synthesize_speech_with_cloned_voice(
         except Exception as e:
             logger.error(f"Failed to download audio from {clone_from_audio_gcs_url}: {str(e)}")
             
-        tts = TransformerTTS()
+        tts = get_tts_instance()
         
-        # TODO: Implement actual voice cloning logic 
         logger.info("Voice cloning not yet implemented - using default voice")
         
-        # Generate audio (placeholder implementation)
+        # Generate audio
         audio_array, sample_rate = tts.synthesize(
             text=text_to_synthesize,
             audio_prompt=audio_data if(audio_data is not None) else None,  
@@ -157,12 +215,12 @@ def synthesize_speech_with_cloned_voice(
         return audio_bytes
         
     except Exception as e:
-        logger.error(f"Speech synthesis with cloned voice failed: {str(e)}")
+        logger.error(f"Speech synthesis failed: {str(e)}")
         return None
 
 def call_vertex_Dia_model(
     input_text: str = SAMPLE_TEXT,
-    config_scale: float = config_SCALE_PARAM,
+    config_scale: float = GUIDANCE_SCALE_PARAM,
     temperature: float = TEMPERATURE_PARAM,
     top_p: float = TOP_P_PARAM
 ) -> bytes | None:
@@ -170,7 +228,7 @@ def call_vertex_Dia_model(
     Placeholder for the local implementation of the DIA model.
     This mirrors the GCP Vertex AI DIA model interface.
     """
-    tts = TransformerTTS()
+    tts = get_tts_instance()
     logger.info("Voice cloning not yet implemented - using default voice")
         
     # Generate audio (placeholder implementation)
@@ -181,8 +239,8 @@ def call_vertex_Dia_model(
         top_p=top_p
     )
 
-    logger.warning("Local DIA model implementation not yet available")
-    return {"predictions": [{"content": "Local DIA model implementation not yet available"}]}
+    logger.warning("Local DIA model implementation executed")
+    return audio_array.tobytes()
 
 
 def download_file_from_url(url: str) -> bytes:
