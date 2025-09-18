@@ -11,7 +11,7 @@
             },
             "pathMappings": [
                 {
-                    "localRoot": "${workspaceFolder}/api",
+                    "localRoot": "${workspaceFolder}",
                     "remoteRoot": "."
                 }
             ],
@@ -74,7 +74,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/api/local_adapter/local_sample_cli.py",
             "args": [
-                "--bucket", "${input:localBucket}",
+                "--base-dir", "${input:localBucket}",
                 "list-hashes"
             ],
             "console": "integratedTerminal",

@@ -2,9 +2,9 @@ import base64
 import logging
 import os
 import random
-import shutil
+import re
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Set, Union
 
 # Configure logging
 logging.basicConfig(
@@ -18,6 +18,9 @@ TEXT_EXTENSION = '.txt'
 BINARY_EXTENSION = '.wav'
 TEXT_PREFIX = 'text_'
 VOICE_PREFIX = 'voice_'
+# Regex patterns for matching file names
+TEXT_FILE_PATTERN = re.compile(fr'(?:^|.*_\d+){re.escape(TEXT_PREFIX)}\d+\..*')
+VOICE_FILE_PATTERN = re.compile(fr'(?:^|.*_\d+){re.escape(VOICE_PREFIX)}\d+\..*')
 TEXT_CONTENT_TYPE = 'text/plain'
 BINARY_CONTENT_TYPE = 'application/octet-stream'
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.getcwd(), 'euphonia-dia'))
@@ -203,14 +206,50 @@ def _extract_suffix(file_name: str, prefix: str) -> Optional[str]:
     
     return None
 
+def _is_binary_file(filepath: str) -> bool:
+    """Check if a file is binary by reading its first chunk of bytes."""
+    try:
+        with open(filepath, 'rb') as f:
+            # Read first 1024 bytes to determine if it's binary
+            chunk = f.read(1024)
+            # Check for null bytes in binary files
+            if b'\x00' in chunk:
+                return True
+            # Try to decode as text, if it fails, it's likely binary
+            try:
+                chunk.decode('utf-8')
+                return False
+            except UnicodeDecodeError:
+                return True
+    except Exception:
+        return False
+
 def _find_matching_pair(directory: str, random_num: Optional[int] = None) -> List[Dict[str, str]]:
     """Find matching text and voice files with the same random number."""
     if not os.path.exists(directory):
         return []
         
     files = os.listdir(directory)
-    text_files = [f for f in files if f.startswith(TEXT_PREFIX) or f.endswith('_' + TEXT_PREFIX)]
-    voice_files = [f for f in files if f.startswith(VOICE_PREFIX) or f.endswith('_' + VOICE_PREFIX)]
+    
+    # Filter files by pattern and content type
+    text_files = []
+    voice_files = []
+    
+    for f in files:
+        filepath = os.path.join(directory, f)
+        if not os.path.isfile(filepath):
+            continue
+            
+        is_binary = _is_binary_file(filepath)
+        
+      # Check for text files (must match pattern and not be binary)
+        if TEXT_FILE_PATTERN.match(f):
+            if not is_binary:
+                text_files.append(f)
+        # Check for voice files (must match pattern and be binary)
+        elif VOICE_FILE_PATTERN.match(f):
+            if is_binary:
+                voice_files.append(f)
     
     # Group files by their suffix
     suffix_map = {}
