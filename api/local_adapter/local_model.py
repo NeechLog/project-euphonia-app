@@ -124,7 +124,14 @@ def synthesize_speech_with_cloned_voice(
     
     try:
         # Initialize the TTS model (lazy loading happens here)
-        audio_data = download_file_from_url(clone_from_audio_url)
+        try:
+            if(clone_from_audio_gcs_url) :
+                audio_data = download_file_from_url(clone_from_audio_gcs_url)
+            else:
+                audio_data = None
+        except Exception as e:
+            logger.error(f"Failed to download audio from {clone_from_audio_gcs_url}: {str(e)}")
+            
         tts = TransformerTTS()
         
         # TODO: Implement actual voice cloning logic 
@@ -133,7 +140,7 @@ def synthesize_speech_with_cloned_voice(
         # Generate audio (placeholder implementation)
         audio_array, sample_rate = tts.synthesize(
             text=text_to_synthesize,
-            audio_prompt=audio_data,  
+            audio_prompt=audio_data if(audio_data is not None) else None,  
             clone_from_text = clone_from_text_transcript,
             temperature=temperature,
             guidance_scale=config_scale,
@@ -175,28 +182,6 @@ def call_vertex_Dia_model(
     return {"predictions": [{"content": "Local DIA model implementation not yet available"}]}
 
 
-if __name__ == "__main__":
-    # Example usage
-    try:
-        text = "This is a test of the local TTS system."
-        audio_data, sample_rate = synthesize_speech_with_cloned_voice(
-            text_to_synthesize=text,
-            clone_from_audio_gcs_url="test_audio_gcs_url",
-            clone_from_text_transcript="test_transcript",
-            temperature=1.3,
-            top_p=0.95,
-            config_scale=0.3
-        )
-        import soundfile as sf
-        # Save audio to file
-        output_path = "output_audio.mp3"
-        sf.write(output_path, audio_data, sample_rate, format='mp3')
-        print(f"Generated {len(audio_data)} samples of audio at {sample_rate}Hz")
-        print(f"Audio saved to: {os.path.abspath(output_path)}")
-        
-    except Exception as e:
-        print(f"Error: {str(e)}")
-
 def download_file_from_url(url: str) -> bytes:
     """
     Download a file from a URL or read from a local file path.
@@ -232,3 +217,26 @@ def download_file_from_url(url: str) -> bytes:
             return f.read()
     else:
         raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")
+
+
+if __name__ == "__main__":
+    # Example usage
+    try:
+        text = "This is a test of the local TTS system."
+        audio_data, sample_rate = synthesize_speech_with_cloned_voice(
+            text_to_synthesize=text,
+            clone_from_audio_gcs_url="test_audio_gcs_url",
+            clone_from_text_transcript="test_transcript",
+            temperature=1.3,
+            top_p=0.95,
+            config_scale=0.3
+        )
+        import soundfile as sf
+        # Save audio to file
+        output_path = "output_audio.mp3"
+        sf.write(output_path, audio_data, sample_rate, format='mp3')
+        print(f"Generated {len(audio_data)} samples of audio at {sample_rate}Hz")
+        print(f"Audio saved to: {os.path.abspath(output_path)}")
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")

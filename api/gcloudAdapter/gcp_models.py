@@ -8,7 +8,7 @@ PROJECT_ID = "673305860828"  # Replace with your Project ID
 REGION = "us-central1"    # e.g., "us-central1"
 ENDPOINT_ID = "5388067671474438144"    # Replace with your Endpoint ID
 ## Mark it True if vertex is up. But for only GCP_storage commands keep it false.
-DIADeployed = True
+DIADeployed = False
 SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
 config_SCALE_PARAM = 0.3
 TEMPERATURE_PARAM = 1.3

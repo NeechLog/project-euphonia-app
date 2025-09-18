@@ -198,7 +198,7 @@ def generate_speech(
     try:
         # Call the local model function
         audio_data = call_vertex_Dia_model(
-            text=text,
+            input_text=text,
             config_scale=config_scale,
             temperature=temperature,
             top_p=top_p
