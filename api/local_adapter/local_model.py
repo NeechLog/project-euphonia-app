@@ -1,9 +1,12 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 import torch
 import numpy as np
 from pathlib import Path
+import requests
+from urllib.parse import urlparse
 import os
+
 from transformers import AutoProcessor, DiaForConditionalGeneration
 
 # Configure logging
@@ -12,9 +15,11 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
+SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
+config_SCALE_PARAM = 0.3
+TEMPERATURE_PARAM = 1.3
+TOP_P_PARAM = 0.95
 # Constants
-DEFAULT_MODEL_DIR = os.path.join(os.path.dirname(__file__), "models")
 DEFAULT_SAMPLE_RATE = 24000  # Common sample rate for TTS models
 
 class TransformerTTS:
@@ -46,6 +51,8 @@ class TransformerTTS:
     def synthesize(
         self, 
         text: str,
+        audio_prompt :bytes,
+        clone_from_text,
         max_new_tokens: int = 3072,
         guidance_scale: float = 3.0,
         temperature: float = 1.8,
@@ -72,8 +79,11 @@ class TransformerTTS:
                     raise RuntimeError("Failed to load TTS model")
             
             try:
-                inputs = self.processor(text=text, padding=True, return_tensors="pt").to(self.device)
-                outputs = self.model.generate(**inputs, max_new_tokens=3072, guidance_scale=3.0, temperature=1.8, top_p=0.90, top_k=45)
+                if(audio_prompt):
+                    inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
+                else:
+                    inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
+                outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
                 logger.info(f"Synthesizing speech for text: {text[:50]}...")
                 audio_array = self.processor.batch_decode(outputs)
                 return audio_array, self.sample_rate
@@ -114,16 +124,17 @@ def synthesize_speech_with_cloned_voice(
     
     try:
         # Initialize the TTS model (lazy loading happens here)
-
+        audio_data = download_file_from_url(clone_from_audio_url)
         tts = TransformerTTS()
         
-        # TODO: Implement actual voice cloning logic here
-        # For now, we'll just synthesize the text without voice cloning
+        # TODO: Implement actual voice cloning logic 
         logger.info("Voice cloning not yet implemented - using default voice")
         
         # Generate audio (placeholder implementation)
         audio_array, sample_rate = tts.synthesize(
             text=text_to_synthesize,
+            audio_prompt=audio_data,  
+            clone_from_text = clone_from_text_transcript,
             temperature=temperature,
             guidance_scale=config_scale,
             top_p=top_p
@@ -139,11 +150,27 @@ def synthesize_speech_with_cloned_voice(
         logger.error(f"Speech synthesis with cloned voice failed: {str(e)}")
         return None
 
-def call_vertex_Dia_model(*args, **kwargs):
+def call_vertex_Dia_model(
+    input_text: str = SAMPLE_TEXT,
+    config_scale: float = config_SCALE_PARAM,
+    temperature: float = TEMPERATURE_PARAM,
+    top_p: float = TOP_P_PARAM
+) -> bytes | None:
     """
     Placeholder for the local implementation of the DIA model.
     This mirrors the GCP Vertex AI DIA model interface.
     """
+    tts = TransformerTTS()
+    logger.info("Voice cloning not yet implemented - using default voice")
+        
+    # Generate audio (placeholder implementation)
+    audio_array, sample_rate = tts.synthesize(
+        text=input_text,
+        temperature=temperature,
+        guidance_scale=config_scale,
+        top_p=top_p
+    )
+
     logger.warning("Local DIA model implementation not yet available")
     return {"predictions": [{"content": "Local DIA model implementation not yet available"}]}
 
@@ -169,3 +196,39 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"Error: {str(e)}")
+
+def download_file_from_url(url: str) -> bytes:
+    """
+    Download a file from a URL or read from a local file path.
+    
+    Args:
+        url: The URL or local file path to download/read from.
+            Can be:
+            - http:// or https:// for web URLs
+            - file:// for local files
+            - Plain path for local files
+            
+    Returns:
+        The binary content of the file.
+        
+    Raises:
+        ValueError: If the URL scheme is not supported.
+        requests.RequestException: If there's an error downloading from a web URL.
+        IOError: If there's an error reading a local file.
+    """
+    parsed_url = urlparse(url)
+    
+    if parsed_url.scheme in ('http', 'https'):
+        # Download from web URL
+        logger.info(f"Downloading file from URL: {url}")
+        response = requests.get(url)
+        response.raise_for_status()
+        return response.content
+    elif parsed_url.scheme == 'file' or not parsed_url.scheme:
+        # Read from local file
+        file_path = parsed_url.path if parsed_url.scheme == 'file' else url
+        logger.info(f"Reading local file: {file_path}")
+        with open(file_path, 'rb') as f:
+            return f.read()
+    else:
+        raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")

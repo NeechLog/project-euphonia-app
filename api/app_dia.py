@@ -19,11 +19,15 @@ STORAGE = "local" # or "gcs" or "e2ebucket"
 if(STORAGE == "gcs"):
     from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="e2ebucket"):
-    from e2ecloudAdapter.e2e_storage import upload_or_update_data_gcs, get_oldest_training_data, list_all_hash_identifiers
+    from e2ecloudAdapter.e2e_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="local"):
     from local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
+CLOUD = "local"
+if CLOUD == "gcs":
+    from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice
+elif CLOUD == "local":
+    from local_adapter.local_model import synthesize_speech_with_cloned_voice
 
-from gcloudAdapter.gcp_models import call_vertex_Dia_model, synthesize_speech_with_cloned_voice
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
