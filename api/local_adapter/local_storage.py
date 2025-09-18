@@ -19,8 +19,8 @@ BINARY_EXTENSION = '.wav'
 TEXT_PREFIX = 'text_'
 VOICE_PREFIX = 'voice_'
 # Regex patterns for matching file names
-TEXT_FILE_PATTERN = re.compile(fr'(?:^|.*_\d+){re.escape(TEXT_PREFIX)}\d+\..*')
-VOICE_FILE_PATTERN = re.compile(fr'(?:^|.*_\d+){re.escape(VOICE_PREFIX)}\d+\..*')
+TEXT_FILE_PATTERN = re.compile(fr'.*{re.escape(TEXT_PREFIX)}\d+\.[^.]+$')
+VOICE_FILE_PATTERN = re.compile(fr'.*{re.escape(VOICE_PREFIX)}\d+\.[^.]+$')
 TEXT_CONTENT_TYPE = 'text/plain'
 BINARY_CONTENT_TYPE = 'application/octet-stream'
 DATA_DIR = os.environ.get('DATA_DIR', os.path.join(os.getcwd(), 'euphonia-dia'))
