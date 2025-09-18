@@ -74,7 +74,7 @@ class TransformerTTS:
             Returns:
                 Tuple of (audio_array, sample_rate)
             """
-            if self.model_checkpoint is None:
+            if self.model is None:
                 if not self.load_model():
                     raise RuntimeError("Failed to load TTS model")
             
