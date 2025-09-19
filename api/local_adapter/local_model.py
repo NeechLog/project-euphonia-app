@@ -151,12 +151,8 @@ class TransformerTTS:
                     #audio_array = self.processor.batch_decode(outputs)
                     logger.debug(f"Output type: {type(outputs)}")
                     if(isinstance(outputs, torch.Tensor)):
-                        if(outputs.data and isinstance(outputs.data, torch.Tensor)):
-                            audio_array = outputs.data.cpu().numpy()
-                            logger.debug(f"Audio array type: {type(audio_array)}")
-                        else:
-                            audio_array = outputs.cpu().numpy()
-                            logger.debug(f"Audio array type: {type(audio_array)}")
+                        audio_array = outputs.cpu().numpy()
+                        logger.debug(f"Audio array type: {type(audio_array)}")
                     elif(isinstance(outputs, np.ndarray)):  
                         audio_array = outputs
                         logger.debug(f"Audio array type: {type(audio_array)}")
