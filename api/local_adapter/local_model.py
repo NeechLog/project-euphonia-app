@@ -104,7 +104,7 @@ class TransformerTTS:
                 
             try:
                 logger.info(f"Loading TTS model from {self.model_checkpoint}...")
-                self.processor = AutoProcessor.from_pretrained(self.model_checkpoint)
+                self.processor = AutoProcessor.from_pretrained(self.model_checkpoint).to(self.device)
                 self.model = DiaForConditionalGeneration.from_pretrained(self.model_checkpoint).to(self.device)
                 logger.info("TTS model and vocoder loaded successfully")
                 return True
@@ -151,8 +151,12 @@ class TransformerTTS:
                     #audio_array = self.processor.batch_decode(outputs)
                     logger.debug(f"Output type: {type(outputs)}")
                     if(isinstance(outputs, torch.Tensor)):
-                        audio_array = outputs.cpu().numpy()
-                        logger.debug(f"Audio array type: {type(audio_array)}")
+                        if(outputs.data and isinstance(outputs.data, torch.Tensor)):
+                            audio_array = outputs.data.cpu().numpy()
+                            logger.debug(f"Audio array type: {type(audio_array)}")
+                        else:
+                            audio_array = outputs.cpu().numpy()
+                            logger.debug(f"Audio array type: {type(audio_array)}")
                     elif(isinstance(outputs, np.ndarray)):  
                         audio_array = outputs
                         logger.debug(f"Audio array type: {type(audio_array)}")
