@@ -104,7 +104,7 @@ class TransformerTTS:
                 
             try:
                 logger.info(f"Loading TTS model from {self.model_checkpoint}...")
-                self.processor = AutoProcessor.from_pretrained(self.model_checkpoint).to(self.device)
+                self.processor = AutoProcessor.from_pretrained(self.model_checkpoint)
                 self.model = DiaForConditionalGeneration.from_pretrained(self.model_checkpoint).to(self.device)
                 logger.info("TTS model and vocoder loaded successfully")
                 return True
