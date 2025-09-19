@@ -14,7 +14,7 @@ from pydub import AudioSegment
 import io
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -149,12 +149,16 @@ class TransformerTTS:
                     outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
                     logger.info(f"Synthesizing speech for text: {text[:50]}...")
                     #audio_array = self.processor.batch_decode(outputs)
+                    logger.debug(f"Output type: {type(outputs)}")
                     if(isinstance(outputs, torch.Tensor)):
                         audio_array = outputs.cpu().numpy()
+                        logger.debug(f"Audio array type: {type(audio_array)}")
                     elif(isinstance(outputs, np.ndarray)):  
                         audio_array = outputs
+                        logger.debug(f"Audio array type: {type(audio_array)}")
                     elif(isinstance(outputs, list)):
                         audio_array = outputs[0].cpu().numpy()
+                        logger.debug(f"Audio array type: {type(audio_array)}")
                     return audio_array, self.sample_rate 
                 except Exception as e:
                     logger.error(f"Speech synthesis failed: {str(e)}")
