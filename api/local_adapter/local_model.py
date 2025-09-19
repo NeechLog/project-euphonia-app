@@ -234,7 +234,7 @@ def call_vertex_Dia_model(
     )
 
     logger.warning("Local DIA model implementation executed")
-    return aconvertNPArraytoMP3(audio_array,sample_rate)
+    return convertNPArraytoMP3(audio_array,sample_rate)
 
 def _resolve_audio_prompt(audio_source: str | None) -> torch.Tensor | str | None:
     """
