@@ -8,8 +8,10 @@ from urllib.parse import urlparse
 import os
 import threading
 import atexit
+import soundfile as sf
 from transformers import AutoProcessor, DiaForConditionalGeneration
-
+from pydub import AudioSegment
+import io
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -115,7 +117,7 @@ class TransformerTTS:
     def synthesize(
         self, 
         text: str,
-        audio_prompt :bytes = None,
+        audio_prompt :str | torch.Tensor | None = None,
         clone_from_text :str = None,
         max_new_tokens: int = 3072,
         guidance_scale: float = 3.0,
@@ -184,14 +186,7 @@ def synthesize_speech_with_cloned_voice(
     
     try:
         # Initialize the TTS model (lazy loading happens here)
-        try:
-            if(clone_from_audio_gcs_url) :
-                audio_data = download_file_from_url(clone_from_audio_gcs_url)
-            else:
-                audio_data = None
-        except Exception as e:
-            logger.error(f"Failed to download audio from {clone_from_audio_gcs_url}: {str(e)}")
-            
+        audio_data = _resolve_audio_prompt(clone_from_audio_gcs_url)
         tts = get_tts_instance()
         
         logger.info("Voice cloning not yet implemented - using default voice")
@@ -208,7 +203,8 @@ def synthesize_speech_with_cloned_voice(
         
         # Convert to WAV format (placeholder - implement proper WAV conversion)
         # For now, just return the raw array as bytes
-        audio_bytes = audio_array.tobytes()
+
+        audio_bytes = convertNPArraytoMP3(audio_array,sample_rate)
         
         return audio_bytes
         
@@ -238,8 +234,54 @@ def call_vertex_Dia_model(
     )
 
     logger.warning("Local DIA model implementation executed")
-    return audio_array.tobytes()
+    return aconvertNPArraytoMP3(audio_array,sample_rate)
 
+def _resolve_audio_prompt(audio_source: str | None) -> torch.Tensor | str | None:
+    """
+    Resolve an audio prompt from various sources (URL, file path, etc.) and return as a PyTorch tensor.
+    
+    Args:
+        audio_source: The source of the audio (URL, file path, or None)
+        
+    Returns:
+        torch.Tensor | None: The audio data as a PyTorch tensor with shape (num_channels, num_samples)
+    """
+    if not audio_source:
+        return None
+        
+    try:
+        parsed_url = urlparse(audio_source)
+        
+        # Handle web URL
+        if parsed_url.scheme in ('http', 'https'):
+            audio_bytes = download_file_from_url(audio_source)
+            # Convert bytes to file-like object for soundfile
+            with io.BytesIO(audio_bytes) as audio_file:
+                audio_array, sample_rate = sf.read(audio_file, dtype='float32')
+        
+        # Handle local file path
+        elif parsed_url.scheme == 'file' or not parsed_url.scheme:
+            file_path = parsed_url.path if parsed_url.scheme == 'file' else audio_source
+            return file_path if (file_path) else None
+            #audio_array, sample_rate = sf.read(file_path, dtype='float32')
+        else:
+            logger.warning(f"Unsupported URL scheme: {parsed_url.scheme}")
+            return None
+        
+        # Convert to mono if stereo
+        if len(audio_array.shape) > 1:
+            audio_array = np.mean(audio_array, axis=1)  # Convert to mono by averaging channels
+            
+        # Convert to PyTorch tensor and ensure proper shape (num_channels, num_samples)
+        audio_tensor = torch.from_numpy(audio_array).float()
+        if len(audio_tensor.shape) == 1:
+            audio_tensor = audio_tensor.unsqueeze(0)  # Add channel dimension if mono
+            
+        return audio_tensor
+        
+    except Exception as e:
+        logger.error(f"Error processing audio source {audio_source}: {str(e)}")
+        return None
 
 def download_file_from_url(url: str) -> bytes:
     """
@@ -277,6 +319,53 @@ def download_file_from_url(url: str) -> bytes:
     else:
         raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")
 
+def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str = "128k") -> bytes:
+    """
+    Convert a numpy array to MP3 bytes using pydub.
+    
+    Args:
+        audio_array: Numpy array containing audio samples
+        sample_rate: Sample rate of the audio
+        bitrate: Bitrate for the output MP3 (e.g., "128k", "192k")
+        
+    Returns:
+        bytes: MP3 audio data as bytes
+        
+    Raises:
+        ImportError: If pydub is not installed
+        Exception: For any conversion errors
+    """
+    try:
+       
+        # Ensure audio_array is in the correct format (mono, 16-bit PCM)
+        if audio_array.dtype != np.int16:
+            # Normalize to 16-bit range
+            audio_array = (audio_array * (2**15 - 1)).astype(np.int16)
+        
+        # Convert numpy array to AudioSegment
+        audio_segment = AudioSegment(
+            audio_array.tobytes(),
+            frame_rate=sample_rate,
+            sample_width=audio_array.dtype.itemsize,
+            channels=1  # Assuming mono audio
+        )
+        
+        # Export to MP3 in memory
+        with io.BytesIO() as mp3_buffer:
+            audio_segment.export(
+                mp3_buffer,
+                format="mp3",
+                bitrate=bitrate,
+                parameters=["-ac", "1"]  # Force mono output
+            )
+            return mp3_buffer.getvalue()
+            
+    except ImportError:
+        logger.error("pydub is required for MP3 conversion. Install with: pip install pydub")
+        raise
+    except Exception as e:
+        logger.error(f"Error converting to MP3: {str(e)}")
+        raise
 
 if __name__ == "__main__":
     # Example usage
