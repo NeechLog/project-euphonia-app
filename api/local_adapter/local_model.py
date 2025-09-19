@@ -148,7 +148,13 @@ class TransformerTTS:
                         inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
                     outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
                     logger.info(f"Synthesizing speech for text: {text[:50]}...")
-                    audio_array = self.processor.batch_decode(outputs)
+                    #audio_array = self.processor.batch_decode(outputs)
+                    if(isinstance(outputs, torch.Tensor)):
+                        audio_array = outputs.cpu().numpy()
+                    elif(isinstance(outputs, np.ndarray)):  
+                        audio_array = outputs
+                    elif(isinstance(outputs, list)):
+                        audio_array = outputs[0].cpu().numpy()
                     return audio_array, self.sample_rate 
                 except Exception as e:
                     logger.error(f"Speech synthesis failed: {str(e)}")
