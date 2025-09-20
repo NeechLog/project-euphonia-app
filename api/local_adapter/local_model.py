@@ -12,6 +12,7 @@ import soundfile as sf
 from transformers import AutoProcessor, DiaForConditionalGeneration
 from pydub import AudioSegment
 import io
+import time 
 # Configure logging
 logging.basicConfig(
     level=logging.DEBUG,
@@ -119,7 +120,7 @@ class TransformerTTS:
         text: str,
         audio_prompt :str | torch.Tensor | None = None,
         clone_from_text :str = None,
-        max_new_tokens: int = 3072,
+        max_new_tokens: int = 16384,
         guidance_scale: float = 3.0,
         temperature: float = 1.8,
         top_p: float = 0.90,
@@ -142,27 +143,112 @@ class TransformerTTS:
             """
             with self._lock:
                 try:
+                    start_time = time.time()
                     if(audio_prompt):
                         inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
                     else:
                         inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
                     outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
-                    logger.info(f"Synthesizing speech for text: {text[:50]}...")
-                    #audio_array = self.processor.batch_decode(outputs)
-                    logger.debug(f"Output type: {type(outputs)}")
-                    if(isinstance(outputs, torch.Tensor)):
-                        audio_array = outputs.cpu().numpy()
+                    end_time = time.time()
+                    execution_time = end_time - start_time
+                    audio_array_tensor = self.processor.batch_decode(outputs)
+                    logger.info(f"Model outputs in {execution_time:.2f} seconds")
+                    end_time = time.time()
+                    execution_time = end_time - start_time
+                    logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
+     
+                    self._log_model_outputs(outputs, audio_array_tensor, text)
+                    self._save_debug_sound(outputs,audio_array_tensor)
+
+                    if(isinstance(audio_array_tensor, torch.Tensor)):
+                        audio_array = audio_array_tensor.cpu().numpy()
                         logger.debug(f"Audio array type: {type(audio_array)}")
-                    elif(isinstance(outputs, np.ndarray)):  
-                        audio_array = outputs
+                    elif(isinstance(audio_array_tensor, np.ndarray)):  
+                        audio_array = audio_array_tensor
                         logger.debug(f"Audio array type: {type(audio_array)}")
-                    elif(isinstance(outputs, list)):
-                        audio_array = outputs[0].cpu().numpy()
+                    elif(isinstance(audio_array_tensor, list)):
+                        audio_array = audio_array_tensor[0].cpu().numpy()
                         logger.debug(f"Audio array type: {type(audio_array)}")
                     return audio_array, self.sample_rate 
                 except Exception as e:
                     logger.error(f"Speech synthesis failed: {str(e)}")
                     raise
+
+    def _log_model_outputs(self, outputs, audio_array_tensor, text):
+        """Log detailed information about model outputs for debugging.
+        
+        Args:
+            outputs: Raw outputs from the model
+            audio_array_tensor: Processed audio tensor from batch_decode
+            text: Input text that was processed
+        """
+        import json
+        from io import StringIO
+        
+        logger.info(f"Synthesizing speech for text: {text[:50]}...")
+        logger.debug(f"Output type: {type(outputs)}")
+        
+        # Log raw outputs
+        output_buffer = StringIO()
+        json.dump(str(outputs), output_buffer, indent=2, ensure_ascii=False)
+        logger.debug(f"Raw outputs (first 1000 chars): {output_buffer.getvalue()[:1000]}")
+        
+        # Log audio tensor info
+        logger.debug(f"Audio array tensor type: {type(audio_array_tensor)}")
+        logger.debug(f"Audio tensor shape: {getattr(audio_array_tensor, 'shape', 'N/A')}")
+        
+        # Log audio tensor values (first few elements)
+        if hasattr(audio_array_tensor, 'flatten'):
+            flat_tensor = audio_array_tensor.flatten()
+            sample_values = flat_tensor[:5].tolist() if hasattr(flat_tensor, 'tolist') else flat_tensor[:5]
+            logger.debug(f"First 5 audio values: {sample_values}")
+
+    def _save_debug_sound(self, outputs, audio_array):
+        """
+        Save debug audio files in both WAV and MP3 formats.
+        
+        Args:
+            outputs: Raw model outputs
+            audio_array: Processed audio array to save
+        """
+        try:
+            import os
+            from datetime import datetime
+            import uuid
+            
+            # Create debug directory if it doesn't exist
+            debug_dir = os.path.join(os.path.dirname(__file__), "..", "..", "debug_audio")
+            os.makedirs(debug_dir, exist_ok=True)
+            
+            # Generate unique filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_id = str(uuid.uuid4())[:8]
+            base_filename = f"debug_audio_{timestamp}_{unique_id}"
+            
+            # File paths
+            wav_path = os.path.join(debug_dir, f"{base_filename}.wav")
+            mp3_path = os.path.join(debug_dir, f"{base_filename}.mp3")
+            try:
+                # Save files
+                sf.write(wav_path, audio_array, self.sample_rate)
+                logger.info(f"Saved debug WAV file: {wav_path}")
+                
+                sf.write(mp3_path, audio_array, self.sample_rate, format='MP3')
+                logger.info(f"Saved debug MP3 file: {mp3_path}")
+            except Exception as e:
+                logger.error(f"Error saving MP3 file: {str(e)}")
+                
+            # Save raw outputs if they exist
+            if outputs is not None:
+                try:
+                    output_path = os.path.join(debug_dir, f"{base_filename}_raw_outputs.pt")
+                    torch.save(outputs, output_path)
+                    logger.info(f"Saved raw model outputs: {output_path}")
+                except Exception as e:
+                    logger.error(f"Error saving raw outputs: {str(e)}")
+                    
+        except Exception as e:
+            logger.error(f"Error in _save_debug_sound: {str(e)}", exc_info=True)
 
 def synthesize_speech_with_cloned_voice(
     text_to_synthesize: str,
@@ -331,7 +417,7 @@ def download_file_from_url(url: str) -> bytes:
 
 def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str = "128k") -> bytes:
     """
-    Convert a numpy array to MP3 bytes using pydub.
+    Convert a numpy array to MP3 bytes using soundfile.
     
     Args:
         audio_array: Numpy array containing audio samples
@@ -342,7 +428,6 @@ def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str 
         bytes: MP3 audio data as bytes
         
     Raises:
-        ImportError: If pydub is not installed
         Exception: For any conversion errors
     """
     try:
@@ -352,27 +437,14 @@ def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str 
             # Normalize to 16-bit range
             audio_array = (audio_array * (2**15 - 1)).astype(np.int16)
         
-        # Convert numpy array to AudioSegment
-        audio_segment = AudioSegment(
-            audio_array.tobytes(),
-            frame_rate=sample_rate,
-            sample_width=audio_array.dtype.itemsize,
-            channels=1  # Assuming mono audio
-        )
+        # Convert numpy array to bytes
+        audio_bytes = audio_array.tobytes()
         
         # Export to MP3 in memory
         with io.BytesIO() as mp3_buffer:
-            audio_segment.export(
-                mp3_buffer,
-                format="mp3",
-                bitrate=bitrate,
-                parameters=["-ac", "1"]  # Force mono output
-            )
+            sf.write(mp3_buffer, audio_bytes, sample_rate, format='MP3', subtype='MP3')
             return mp3_buffer.getvalue()
             
-    except ImportError:
-        logger.error("pydub is required for MP3 conversion. Install with: pip install pydub")
-        raise
     except Exception as e:
         logger.error(f"Error converting to MP3: {str(e)}")
         raise
