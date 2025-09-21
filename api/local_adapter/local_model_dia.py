@@ -29,7 +29,6 @@ DEFAULT_SAMPLE_RATE = 24000
 
 # Global instance and lock for thread-safe singleton
 _tts_instance = None
-_tts_lock = threading.Lock()
 
 def get_tts_instance() -> 'Dia_Local_Wrapper':
     """Get or create a thread-safe singleton instance of Dia_Local_wrapper."""
@@ -38,11 +37,11 @@ def get_tts_instance() -> 'Dia_Local_Wrapper':
     if _tts_instance is None:
         with _tts_lock:
             if _tts_instance is None:
-                logger.info("Initializing mock TTS model...")
+                logger.info("Initializing  Dia local model...")
                 _tts_instance = Dia_Local_Wrapper()
                 if not _tts_instance.load_model():
                     _tts_instance = None
-                    raise RuntimeError("Failed to initialize mock TTS model")
+                    raise RuntimeError("Failed to initialize Dia local model")
     return _tts_instance
 
 def cleanup_tts_instance() -> None:
@@ -59,7 +58,7 @@ atexit.register(cleanup_tts_instance)
 class Dia_Local_Wrapper:
     
     def __init__(self, model_path: Optional[str] = None, device: str = None):
-        """Initialize the mock TTS model."""
+        """Initialize the model."""
         self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
         logger.info(f"Devie is {self.device}")
         dtype_map = {
@@ -68,7 +67,7 @@ class Dia_Local_Wrapper:
             "cuda": "float16",  # NVIDIA – better with float16
         }
         self.dtype = dtype_map.get(device.type, "float16")
-        logger.info(f"Device type is {dtype}")
+        logger.info(f"Device type is {self.dtype}")
         self.model = None
         self.processor = None
         self.sample_rate = self.config.sample_rate
@@ -100,55 +99,48 @@ class Dia_Local_Wrapper:
         **kwargs
     ) -> Tuple[np.ndarray, int]:
 
-        try:
-            start_time = time.time()
-            if(audio_prompt):
-                outputs = self.model.generate(
-                    text=clone_from_text+text, 
-                    audio_prompt=audio_prompt,
-                    use_torch_compile=False, 
-                    verbose=True,
-                    cfg_scale=4.0,
-                    temperature=1.8,
-                    top_p=0.90,
-                    cfg_filter_top_k=50
-                )
-            else:
-                outputs = self.model.generate(
-                    text=text,
-                    use_torch_compile=False,
-                    verbose=True,
-                    cfg_scale=4.0,
-                    temperature=1.8,
-                    top_p=0.90,
-                    cfg_filter_top_k=50
-                )
-            end_time = time.time()
-            execution_time = end_time - start_time
-            logger.info(f"Model outputs in {execution_time:.2f} seconds")
-            # Generate mock audio data
-            audio_array = outputs[0].cpu().numpy()
-            end_time = time.time()
-            execution_time = end_time - start_time
-            logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
+       
+            try:
+                start_time = time.time()
+                with self._lock:
+                    if(audio_prompt):
+                        outputs = self.model.generate(
+                            text=clone_from_text+text, 
+                            audio_prompt=audio_prompt,
+                            use_torch_compile=False, 
+                            verbose=True,
+                            cfg_scale=4.0,
+                            temperature=1.8,
+                            top_p=0.90,
+                            cfg_filter_top_k=50
+                        )
+                    else:
+                        outputs = self.model.generate(
+                            text=text,
+                            use_torch_compile=False,
+                            verbose=True,
+                            cfg_scale=4.0,
+                            temperature=1.8,
+                            top_p=0.90,
+                            cfg_filter_top_k=50
+                        )
+                end_time = time.time()
+                execution_time = end_time - start_time
+                logger.info(f"Model outputs in {execution_time:.2f} seconds")
+                # Generate mock audio data
+                audio_array = outputs[0].cpu().numpy()
+                end_time = time.time()
+                execution_time = end_time - start_time
+                logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
+                log_model_outputs(outputs, audio_array, text)
+                save_debug_sound(outputs,audio_array)
+                return outputs, self.sample_rate
+            except Exception as e:
+                logger.error(f"Error in synthesize: {str(e)}", exc_info=True)
+                raise
+            
 
-        except Exception as e:
-            logger.error(f"Error in synthesize: {str(e)}", exc_info=True)
-            raise
-            
-        log_model_outputs(outputs, audio_array, text)
-        save_debug_sound(outputs,audio_array)
         
-        return outputs, self.sample_rate
+
     
     
-if __name__ == "__main__":
-    # Example usage
-    try:
-        text = "This is a test of the mock TTS system."
-        audio_data = call_vertex_Dia_model(text)
-        if audio_data:
-            logger.info(f"Successfully generated {len(audio_data)} bytes of mock audio data")
-            
-    except Exception as e:
-        logger.error(f"Error in mock TTS example: {str(e)}", exc_info=True)

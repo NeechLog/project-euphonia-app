@@ -135,7 +135,7 @@ class TransformerTTS:
             Returns:
                 Tuple of (audio_array, sample_rate)
             """
-            with _tts_lock:
+            with self._lock:
                 try:
                     start_time = time.time()
                     if(audio_prompt):
