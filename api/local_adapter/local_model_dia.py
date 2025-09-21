@@ -29,6 +29,7 @@ DEFAULT_SAMPLE_RATE = 24000
 
 # Global instance and lock for thread-safe singleton
 _tts_instance = None
+_tts_lock = threading.Lock()
 
 def get_tts_instance() -> 'Dia_Local_Wrapper':
     """Get or create a thread-safe singleton instance of Dia_Local_wrapper."""
