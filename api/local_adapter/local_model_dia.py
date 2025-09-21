@@ -31,8 +31,8 @@ DEFAULT_SAMPLE_RATE = 24000
 _tts_instance = None
 _tts_lock = threading.Lock()
 
-def get_tts_instance() -> Dia_Local_Wrapper:
-    """Get or create a thread-safe singleton instance of MockTransformerTTS."""
+def get_tts_instance() -> 'Dia_Local_Wrapper':
+    """Get or create a thread-safe singleton instance of Dia_Local_wrapper."""
     global _tts_instance
     
     if _tts_instance is None:
@@ -57,7 +57,6 @@ atexit.register(cleanup_tts_instance)
 
 
 class Dia_Local_Wrapper:
-    """Mock implementation of the TransformerTTS class with debug capabilities."""
     
     def __init__(self, model_path: Optional[str] = None, device: str = None):
         """Initialize the mock TTS model."""
