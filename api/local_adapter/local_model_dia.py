@@ -67,11 +67,11 @@ class Dia_Local_Wrapper:
             "mps": "float32",  # Apple M series – better with float32
             "cuda": "float16",  # NVIDIA – better with float16
         }
-        self.dtype = dtype_map.get(device.type, "float16")
+        self.dtype = dtype_map.get(device, "float16")
         logger.info(f"Device type is {self.dtype}")
         self.model = None
         self.processor = None
-        self.sample_rate = self.config.sample_rate
+        self.sample_rate = DEFAULT_SAMPLE_RATE
         self._lock = threading.Lock()
 
         
