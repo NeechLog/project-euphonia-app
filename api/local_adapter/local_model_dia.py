@@ -1,4 +1,3 @@
-
 import logging
 from typing import Optional, Tuple, Union, Dict, Any
 import torch
@@ -126,13 +125,23 @@ class Dia_Local_Wrapper:
                 end_time = time.time()
                 execution_time = end_time - start_time
                 logger.info(f"Model outputs in {execution_time:.2f} seconds")
-                # Generate mock audio data
-                audio_array = outputs[0].cpu().numpy()
+                
+                # Convert to numpy array, handling both tensor and numpy array cases
+                if isinstance(outputs, (list, tuple)) and len(outputs) > 0:
+                    audio_data = outputs[0]
+                    if hasattr(audio_data, 'cpu'):  # If it's a PyTorch tensor
+                        audio_array = audio_data.cpu().numpy()
+                    else:  # If it's already a numpy array
+                        audio_array = np.array(audio_data)
+                else:
+                    audio_array = np.array(outputs)  # Fallback for other cases
+                
                 end_time = time.time()
                 execution_time = end_time - start_time
                 logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
+                
                 log_model_outputs(outputs, audio_array, text)
-                save_debug_sound(outputs,audio_array)
+                save_debug_sound(outputs, audio_array)
                 return outputs, self.sample_rate
             except Exception as e:
                 logger.error(f"Error in synthesize: {str(e)}", exc_info=True)
