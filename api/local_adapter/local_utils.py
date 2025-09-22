@@ -166,16 +166,16 @@ def log_model_outputs(outputs, audio_array_tensor, text):
         output_buffer = StringIO()
         json.dump(str(outputs), output_buffer, indent=2, ensure_ascii=False)
         logger.debug(f"Raw outputs (first 100000 chars): {output_buffer.getvalue()[:100000]}")
-        
-        # Log audio tensor info
-        logger.debug(f"Audio array tensor type: {type(audio_array_tensor)}")
-        logger.debug(f"Audio tensor shape: {getattr(audio_array_tensor, 'shape', 'N/A')}")
-        
-        # Log audio tensor values (first few elements)
-        if hasattr(audio_array_tensor, 'flatten'):
-            flat_tensor = audio_array_tensor.flatten()
-            sample_values = flat_tensor[:5].tolist() if hasattr(flat_tensor, 'tolist') else flat_tensor[:5]
-            logger.debug(f"First 5 audio values: {sample_values}")
+        if(audio_array_tensor):
+            # Log audio tensor info
+            logger.debug(f"Audio array tensor type: {type(audio_array_tensor)}")
+            logger.debug(f"Audio tensor shape: {getattr(audio_array_tensor, 'shape', 'N/A')}")
+            
+            # Log audio tensor values (first few elements)
+            if hasattr(audio_array_tensor, 'flatten'):
+                flat_tensor = audio_array_tensor.flatten()
+                sample_values = flat_tensor[:5].tolist() if hasattr(flat_tensor, 'tolist') else flat_tensor[:5]
+                logger.debug(f"First 5 audio values: {sample_values}")
             
     except Exception as e:
         error_trace = traceback.format_exc()
