@@ -13,6 +13,7 @@ from transformers import AutoProcessor, DiaForConditionalGeneration
 from pydub import AudioSegment
 import io
 import time 
+import traceback
 from local_utils import _resolve_audio_prompt, download_file_from_url, convertNPArraytoMP3, log_model_outputs , save_debug_sound
 model_imps = "DIA" # "TT"
 if model_imps == "DIA":
@@ -88,7 +89,10 @@ def synthesize_speech_with_cloned_voice(
         
     except Exception as e:
         logger.error(f"Speech synthesis failed: {str(e)}")
-        return None
+        error_trace = traceback.format_exc()
+        logger.error(f"Stack trace:\n{error_trace}")
+        raise
+
 
 def call_vertex_Dia_model(
     input_text: str = SAMPLE_TEXT,
@@ -101,18 +105,25 @@ def call_vertex_Dia_model(
     This mirrors the GCP Vertex AI DIA model interface.
     """
     tts = get_tts_instance()
-    logger.info("Voice cloning not yet implemented - using default voice")
+    logger.info("Voice  - using default voice")
         
-    # Generate audio (placeholder implementation)
-    audio_array, sample_rate = tts.synthesize(
-        text_to_speak==input_text,
-        temperature=temperature,
-        guidance_scale=config_scale,
-        top_p=top_p
-    )
-
-    logger.warning("Local DIA model implementation executed")
-    return convertNPArraytoMP3(audio_array,sample_rate)
+    try:
+        # Generate audio (placeholder implementation)
+        audio_array, sample_rate = tts.synthesize(
+            text_to_speak=input_text,
+            temperature=temperature,
+            guidance_scale=config_scale,
+            top_p=top_p
+        )
+        
+        logger.info("Successfully generated audio with local DIA model")
+        return convertNPArraytoMP3(audio_array, sample_rate)
+        
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        logger.error(f"Error in call_vertex_Dia_model: {str(e)}")
+        logger.error(f"Stack trace:\n{error_trace}")
+        raise
 
 if __name__ == "__main__":
     # Example usage
@@ -130,8 +141,8 @@ if __name__ == "__main__":
         # Save audio to file
         output_path = "output_audio.mp3"
         sf.write(output_path, audio_data, sample_rate, format='mp3')
-        print(f"Generated {len(audio_data)} samples of audio at {sample_rate}Hz")
-        print(f"Audio saved to: {os.path.abspath(output_path)}")
+        logger.error(f"Generated {len(audio_data)} samples of audio at {sample_rate}Hz")
+        logger.error(f"Audio saved to: {os.path.abspath(output_path)}")
         
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error: {str(e)}")
