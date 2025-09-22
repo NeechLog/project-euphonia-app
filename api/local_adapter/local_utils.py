@@ -129,8 +129,8 @@ def convertNPArraytoMP3(audio_array, sample_rate=24000):
                 mp3_buffer,
                 audio_array,
                 sample_rate,
-                format='MP3',
-                subtype='MP3'
+                format='mp3',
+                subtype='mp3'
             )
             mp3_buffer.seek(0)
             return mp3_buffer.read()
