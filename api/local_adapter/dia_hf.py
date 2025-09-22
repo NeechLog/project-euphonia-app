@@ -111,7 +111,7 @@ class TransformerTTS:
     
     def synthesize(
         self, 
-        text: str,
+        text_to_speak: str,
         audio_prompt :str | torch.Tensor | None = None,
         clone_from_text :str = None,
         max_new_tokens: int = 16384,
@@ -139,9 +139,9 @@ class TransformerTTS:
                 try:
                     start_time = time.time()
                     if(audio_prompt):
-                        inputs = self.processor(text=clone_from_text+text, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
+                        inputs = self.processor(text=clone_from_text+text_to_speak, audio_prompt = audio_prompt, padding=True, return_tensors="pt").to(self.device)
                     else:
-                        inputs = self.processor(text = text, padding=True, return_tensors="pt").to(self.device)
+                        inputs = self.processor(text = text_to_speak, padding=True, return_tensors="pt").to(self.device)
                     outputs = self.model.generate(**inputs, max_new_tokens = max_new_tokens, guidance_scale = guidance_scale, temperature = temperature, top_p = top_p, top_k = top_k)
                     end_time = time.time()
                     execution_time = end_time - start_time
@@ -151,7 +151,7 @@ class TransformerTTS:
                     execution_time = end_time - start_time
                     logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
      
-                    log_model_outputs(outputs, audio_array_tensor, text)
+                    log_model_outputs(outputs, audio_array_tensor, text_to_speak)
                     save_debug_sound(outputs,audio_array_tensor)
 
                     if(isinstance(audio_array_tensor, torch.Tensor)):

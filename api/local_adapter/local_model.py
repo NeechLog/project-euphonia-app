@@ -71,7 +71,7 @@ def synthesize_speech_with_cloned_voice(
         
         # Generate audio
         audio_array, sample_rate = tts.synthesize(
-            text=text_to_synthesize,
+            text_to_speak=text_to_synthesize,
             audio_prompt=audio_data if(audio_data is not None) else None,  
             clone_from_text = clone_from_text_transcript,
             temperature=temperature,
@@ -105,7 +105,7 @@ def call_vertex_Dia_model(
         
     # Generate audio (placeholder implementation)
     audio_array, sample_rate = tts.synthesize(
-        text=input_text,
+        text_to_speak==input_text,
         temperature=temperature,
         guidance_scale=config_scale,
         top_p=top_p

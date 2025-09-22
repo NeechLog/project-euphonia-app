@@ -86,7 +86,7 @@ class Dia_Local_Wrapper:
     
     def synthesize(
         self, 
-        text: str,
+        text_to_speak: str,
         audio_prompt: Union[str, torch.Tensor, None] = None,
         clone_from_text: str = None,
         max_new_tokens: int = 16384,
@@ -103,7 +103,7 @@ class Dia_Local_Wrapper:
                 with self._lock:
                     if(audio_prompt):
                         outputs = self.model.generate(
-                            text=clone_from_text+text, 
+                            text=clone_from_text+text_to_speak, 
                             audio_prompt=audio_prompt,
                             use_torch_compile=False, 
                             verbose=True,
@@ -114,7 +114,7 @@ class Dia_Local_Wrapper:
                         )
                     else:
                         outputs = self.model.generate(
-                            text=text,
+                            text=text_to_speak,
                             use_torch_compile=False,
                             verbose=True,
                             cfg_scale=4.0,
@@ -140,9 +140,9 @@ class Dia_Local_Wrapper:
                 execution_time = end_time - start_time
                 logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
                 
-                log_model_outputs(outputs, audio_array, text)
+                log_model_outputs(outputs = outputs, audio_array_tensor = audio_array, text = text_to_speak)
                 save_debug_sound(outputs, audio_array)
-                return outputs, self.sample_rate
+                return audio_array, self.sample_rate
             except Exception as e:
                 logger.error(f"Error in synthesize: {str(e)}", exc_info=True)
                 raise
