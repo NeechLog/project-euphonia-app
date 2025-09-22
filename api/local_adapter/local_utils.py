@@ -97,43 +97,47 @@ def download_file_from_url(url: str) -> bytes:
     else:
         raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")
 
-def convertNPArraytoMP3(audio_array, sample_rate=24000):
+def convertNPArraytoMP3(audio_array, sample_rate=24000) -> bytes:
     """
-    Convert a numpy array to MP3 bytes.
+    Convert a numpy array to MP3 bytes using pydub.
     
     Args:
         audio_array: NumPy array containing audio data
         sample_rate: Sample rate of the audio (default: 24000)
         
     Returns:
-        bytes: MP3 audio data
+        bytes: MP3 audio data as bytes
         
     Raises:
         Exception: For any conversion errors
     """
     try:
+        from pydub import AudioSegment
+        import numpy as np
+        
         # Ensure audio_array is 1D (mono)
         if len(audio_array.shape) > 1:
             audio_array = audio_array.squeeze()
             
-        # Ensure audio_array is in the correct format (float32 in range [-1, 1])
-        if np.issubdtype(audio_array.dtype, np.integer):
-            audio_array = audio_array.astype(np.float32) / np.iinfo(audio_array.dtype).max
+        # Normalize to 16-bit range if needed
+        if np.issubdtype(audio_array.dtype, np.floating):
+            audio_array = (audio_array * 32767).astype(np.int16)
+        elif audio_array.dtype != np.int16:
+            audio_array = audio_array.astype(np.int16)
         
-        # Convert to float32 if not already
-        audio_array = audio_array.astype(np.float32)
+        # Create AudioSegment from numpy array
+        audio_segment = AudioSegment(
+            audio_array.tobytes(),
+            frame_rate=sample_rate,
+            sample_width=audio_array.dtype.itemsize,
+            channels=1
+        )
         
         # Export to MP3 in memory
         with io.BytesIO() as mp3_buffer:
-            sf.write(
-                mp3_buffer,
-                audio_array,
-                sample_rate,
-                format='mp3',
-                subtype='mp3'
-            )
+            audio_segment.export(mp3_buffer, format="mp3", bitrate="128k")
             mp3_buffer.seek(0)
-            return mp3_buffer.read()
+            return mp3_buffer.getvalue()
             
     except Exception as e:
         error_trace = traceback.format_exc()
