@@ -97,40 +97,51 @@ def download_file_from_url(url: str) -> bytes:
     else:
         raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")
 
-def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str = "128k") -> bytes:
+def convertNPArraytoMP3(audio_array, sample_rate=24000):
     """
-    Convert a numpy array to MP3 bytes using soundfile.
+    Convert a numpy array to MP3 bytes.
     
     Args:
-        audio_array: Numpy array containing audio samples
-        sample_rate: Sample rate of the audio
-        bitrate: Bitrate for the output MP3 (e.g., "128k", "192k")
+        audio_array: NumPy array containing audio data
+        sample_rate: Sample rate of the audio (default: 24000)
         
     Returns:
-        bytes: MP3 audio data as bytes
+        bytes: MP3 audio data
         
     Raises:
         Exception: For any conversion errors
     """
     try:
-       
-        # Ensure audio_array is in the correct format (mono, 16-bit PCM)
-        if audio_array.dtype != np.int16:
-            # Normalize to 16-bit range
-            audio_array = (audio_array * (2**15 - 1)).astype(np.int16)
+        # Ensure audio_array is 1D (mono)
+        if len(audio_array.shape) > 1:
+            audio_array = audio_array.squeeze()
+            
+        # Ensure audio_array is in the correct format (float32 in range [-1, 1])
+        if np.issubdtype(audio_array.dtype, np.integer):
+            audio_array = audio_array.astype(np.float32) / np.iinfo(audio_array.dtype).max
         
-        # Convert numpy array to bytes
-        audio_bytes = audio_array.tobytes()
+        # Convert to float32 if not already
+        audio_array = audio_array.astype(np.float32)
         
         # Export to MP3 in memory
         with io.BytesIO() as mp3_buffer:
-            sf.write(mp3_buffer, audio_bytes, sample_rate, format='MP3', subtype='MP3')
-            return mp3_buffer.getvalue()
+            sf.write(
+                mp3_buffer,
+                audio_array,
+                sample_rate,
+                format='MP3',
+                subtype='MP3'
+            )
+            mp3_buffer.seek(0)
+            return mp3_buffer.read()
             
     except Exception as e:
-        logger.error(f"Error converting to MP3: {str(e)}")
+        error_trace = traceback.format_exc()
+        logger.error(f"Error in convertNPArraytoMP3: {str(e)}")
+        logger.error(f"Audio array shape: {audio_array.shape if hasattr(audio_array, 'shape') else 'N/A'}")
+        logger.error(f"Audio array dtype: {audio_array.dtype if hasattr(audio_array, 'dtype') else 'N/A'}")
+        logger.error(f"Stack trace:\n{error_trace}")
         raise
-
 
 def log_model_outputs(outputs, audio_array_tensor, text):
     """Log detailed information about model outputs for debugging.
