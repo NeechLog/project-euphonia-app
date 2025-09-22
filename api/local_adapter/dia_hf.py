@@ -152,7 +152,8 @@ class TransformerTTS:
                     logger.info(f"Model and audio array tensor decoding in {execution_time:.2f} seconds")
      
                     log_model_outputs(outputs, audio_array_tensor, text_to_speak)
-                    save_debug_sound(outputs,audio_array_tensor)
+                    save_debug_sound([outputs,audio_array], sample_rate=self.sample_rate)
+
 
                     if(isinstance(audio_array_tensor, torch.Tensor)):
                         audio_array = audio_array_tensor.cpu().numpy()

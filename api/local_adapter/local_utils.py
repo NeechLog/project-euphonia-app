@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import requests
 import soundfile as sf
 import io
+import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ def convertNPArraytoMP3(audio_array: np.ndarray, sample_rate: int, bitrate: str 
         raise
 
 
-def log_model_outputs(self, outputs, audio_array_tensor, text):
+def log_model_outputs(outputs, audio_array_tensor, text):
     """Log detailed information about model outputs for debugging.
     
     Args:
@@ -139,71 +140,100 @@ def log_model_outputs(self, outputs, audio_array_tensor, text):
         audio_array_tensor: Processed audio tensor from batch_decode
         text: Input text that was processed
     """
-    import json
-    from io import StringIO
-    
-    logger.info(f"Synthesizing speech for text: {text[:50]}...")
-    logger.debug(f"Output type: {type(outputs)}")
-    
-    # Log raw outputs
-    output_buffer = StringIO()
-    json.dump(str(outputs), output_buffer, indent=2, ensure_ascii=False)
-    logger.debug(f"Raw outputs (first 1000 chars): {output_buffer.getvalue()[:1000]}")
-    
-    # Log audio tensor info
-    logger.debug(f"Audio array tensor type: {type(audio_array_tensor)}")
-    logger.debug(f"Audio tensor shape: {getattr(audio_array_tensor, 'shape', 'N/A')}")
-    
-    # Log audio tensor values (first few elements)
-    if hasattr(audio_array_tensor, 'flatten'):
-        flat_tensor = audio_array_tensor.flatten()
-        sample_values = flat_tensor[:5].tolist() if hasattr(flat_tensor, 'tolist') else flat_tensor[:5]
-        logger.debug(f"First 5 audio values: {sample_values}")
+    try:
+        import json
+        from io import StringIO
+        
+        logger.info(f"Synthesizing speech for text: {text[:50]}...")
+        logger.debug(f"Output type: {type(outputs)}")
+        
+        # Log raw outputs
+        output_buffer = StringIO()
+        json.dump(str(outputs), output_buffer, indent=2, ensure_ascii=False)
+        logger.debug(f"Raw outputs (first 100000 chars): {output_buffer.getvalue()[:100000]}")
+        
+        # Log audio tensor info
+        logger.debug(f"Audio array tensor type: {type(audio_array_tensor)}")
+        logger.debug(f"Audio tensor shape: {getattr(audio_array_tensor, 'shape', 'N/A')}")
+        
+        # Log audio tensor values (first few elements)
+        if hasattr(audio_array_tensor, 'flatten'):
+            flat_tensor = audio_array_tensor.flatten()
+            sample_values = flat_tensor[:5].tolist() if hasattr(flat_tensor, 'tolist') else flat_tensor[:5]
+            logger.debug(f"First 5 audio values: {sample_values}")
+            
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        logger.error(f"Error in log_model_outputs: {str(e)}")
+        logger.error(f"Stack trace:\n{error_trace}")
 
-def save_debug_sound(self, outputs, audio_array):
+
+def save_debug_sound(audio_arrays, sample_rate=24000):
     """
-    Save debug audio files in both WAV and MP3 formats.
+    Save debug audio files in WAV, MP3, and PyTorch formats.
     
     Args:
-        outputs: Raw model outputs
-        audio_array: Processed audio array to save
+        audio_arrays: Single numpy array or list of numpy arrays to save
+        sample_rate: Sample rate of the audio (default: 24000)
     """
     try:
         import os
+        import torch
+        import soundfile as sf
+        from pydub import AudioSegment
+        import numpy as np
         from datetime import datetime
-        import uuid
         
         # Create debug directory if it doesn't exist
-        debug_dir = os.path.join(os.path.dirname(__file__), "..", "..", "debug_audio")
+        debug_dir = "debug_audio"
         os.makedirs(debug_dir, exist_ok=True)
         
-        # Generate unique filename with timestamp
+        # Get current timestamp for unique filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_id = str(uuid.uuid4())[:8]
-        base_filename = f"debug_audio_{timestamp}_{unique_id}"
         
-        # File paths
-        wav_path = os.path.join(debug_dir, f"{base_filename}.wav")
-        mp3_path = os.path.join(debug_dir, f"{base_filename}.mp3")
-        try:
-            # Save files                
-            sf.write(mp3_path, audio_array, self.sample_rate, format='MP3')
-            sf.write(wav_path, audio_array, self.sample_rate)
-            logger.info(f"Saved debug WAV file: {wav_path}")
-            logger.info(f"Saved debug MP3 file: {mp3_path}")
-        except Exception as e:
-            logger.error(f"Error saving MP3 file: {str(e)}")
+        # Convert single array to list for uniform processing
+        if not isinstance(audio_arrays, (list, tuple)):
+            audio_arrays = [audio_arrays]
             
-        # Save raw outputs if they exist
-        if outputs is not None:
-            try:
-                output_path = os.path.join(debug_dir, f"{base_filename}_raw_outputs.pt")
-                torch.save(outputs, output_path)
-                logger.info(f"Saved raw model outputs: {output_path}")
-            except Exception as e:
-                logger.error(f"Error saving raw outputs: {str(e)}")
+        # Save each audio array
+        for idx, audio_array in enumerate(audio_arrays):
+            if not isinstance(audio_array, np.ndarray):
+                logger.warning(f"Skipping non-array at index {idx}")
+                continue
                 
+            # Generate base filename
+            base_filename = f"audio_{timestamp}_{idx}"
+            
+            # Save as WAV
+            wav_path = os.path.join(debug_dir, f"{base_filename}.wav")
+            sf.write(wav_path, audio_array, sample_rate)
+            
+            # Save as MP3
+            try:
+                mp3_path = os.path.join(debug_dir, f"{base_filename}.mp3")
+                audio_segment = AudioSegment(
+                    audio_array.tobytes(),
+                    frame_rate=sample_rate,
+                    sample_width=audio_array.dtype.itemsize,
+                    channels=1  # Assuming mono audio
+                )
+                audio_segment.export(mp3_path, format="mp3")
+            except Exception as e:
+                logger.error(f"Error saving MP3: {str(e)}")
+            
+            # Save as PyTorch tensor
+            try:
+                pt_path = os.path.join(debug_dir, f"{base_filename}.pt")
+                torch.save(torch.from_numpy(audio_array), pt_path)
+            except Exception as e:
+                logger.error(f"Error saving PyTorch tensor: {str(e)}")
+            
+            logger.info(f"Saved debug audio files with prefix: {base_filename}")
+            
     except Exception as e:
-        logger.error(f"Error in _save_debug_sound: {str(e)}", exc_info=True)
+        logger.error(f"Error in save_debug_sound: {str(e)}", exc_info=True)
+        error_trace = traceback.format_exc()
+        logger.error(f"Error in saving files: {str(e)}")
+        logger.error(f"Stack trace:\n{error_trace}")
 
 
