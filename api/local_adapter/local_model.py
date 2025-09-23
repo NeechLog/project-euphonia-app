@@ -110,7 +110,7 @@ def call_vertex_Dia_model(
     try:
         # Generate audio (placeholder implementation)
         audio_array, sample_rate = tts.synthesize(
-            text_to_speak=input_text,
+            text_to_speak=SAMPLE_TEXT,
             temperature=temperature,
             guidance_scale=config_scale,
             top_p=top_p

@@ -142,6 +142,7 @@ class Dia_Local_Wrapper:
                 
                 log_model_outputs(outputs=outputs, audio_array_tensor=None, text=text_to_speak)
                 save_debug_sound([outputs], sample_rate=self.sample_rate)
+                self.model.save_audio("damm_odd.mp3", outputs)
                 return outputs, self.sample_rate
             except Exception as e:
                 logger.error(f"Error in synthesize: {str(e)}", exc_info=True)
