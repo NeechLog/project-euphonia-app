@@ -82,7 +82,7 @@ class TransformerTTS:
         self.model_checkpoint = "nari-labs/Dia-1.6B-0626"
         self.model = None
         self.processor = None
-        self.sample_rate = 24000
+        self.sample_rate = 44100
         self._lock = threading.Lock()  # Instance-level lock for thread safety
       
     

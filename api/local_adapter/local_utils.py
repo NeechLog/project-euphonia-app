@@ -97,7 +97,7 @@ def download_file_from_url(url: str) -> bytes:
     else:
         raise ValueError(f"Unsupported URL scheme: {parsed_url.scheme}")
 
-def convertNPArraytoMP3(audio_array, sample_rate=24000) -> bytes:
+def convertNPArraytoMP3(audio_array, sample_rate=44100) -> bytes:
     """
     Convert a numpy array to MP3 bytes using pydub.
     
@@ -183,7 +183,7 @@ def log_model_outputs(outputs, audio_array_tensor, text):
         logger.error(f"Stack trace:\n{error_trace}")
 
 
-def save_debug_sound(audio_arrays, sample_rate=24000):
+def save_debug_sound(audio_arrays, sample_rate=44100):
     """
     Save debug audio files in WAV, MP3, and PyTorch formats.
     

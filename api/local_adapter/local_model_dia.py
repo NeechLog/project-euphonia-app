@@ -24,7 +24,7 @@ SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get 
 GUIDANCE_SCALE_PARAM = 3.0
 TEMPERATURE_PARAM = 1.8
 TOP_P_PARAM = 0.95
-DEFAULT_SAMPLE_RATE = 24000
+DEFAULT_SAMPLE_RATE = 44100
 
 # Global instance and lock for thread-safe singleton
 _tts_instance = None

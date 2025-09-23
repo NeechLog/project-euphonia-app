@@ -31,7 +31,7 @@ GUIDANCE_SCALE_PARAM = 3.0
 TEMPERATURE_PARAM = 1.8
 TOP_P_PARAM = 0.95
 # Constants
-DEFAULT_SAMPLE_RATE = 24000  # Common sample rate for TTS model
+DEFAULT_SAMPLE_RATE = 44100  # Common sample rate for TTS model
 
 def synthesize_speech_with_cloned_voice(
     text_to_synthesize: str,
@@ -110,7 +110,7 @@ def call_vertex_Dia_model(
     try:
         # Generate audio (placeholder implementation)
         audio_array, sample_rate = tts.synthesize(
-            text_to_speak=SAMPLE_TEXT,
+            text_to_speak=input_text,
             temperature=temperature,
             guidance_scale=config_scale,
             top_p=top_p
