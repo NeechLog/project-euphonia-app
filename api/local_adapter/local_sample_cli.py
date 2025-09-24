@@ -71,7 +71,7 @@ def upload_sample_pair(
         
         # Upload using local_storage
         text_url, voice_url = upload_or_update_data_local(
-            base_dir=base_dir,
+            bucket_name=base_dir,
             hash_identifier=hash_id,
             text_data=text_content,
             voice_data_bytes=voice_content,

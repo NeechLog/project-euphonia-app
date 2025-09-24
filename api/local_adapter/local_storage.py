@@ -94,7 +94,7 @@ def _resolve_data_dir(base_dir: str) -> str:
 
 
 def upload_or_update_data_local(
-    base_dir: str,
+    bucket_name: str,
     hash_identifier: str, 
     text_data: str, 
     voice_data_bytes: bytes, 
@@ -136,13 +136,13 @@ def upload_or_update_data_local(
             raise TypeError(error_msg)
         
         # Resolve base directory
-        base_dir = _resolve_data_dir(base_dir)
+        bucket_name = _resolve_data_dir(bucket_name)
         
         # Create the directory if it doesn't exist
-        os.makedirs(base_dir, exist_ok=True)
+        os.makedirs(bucket_name, exist_ok=True)
         
         # Create the directory for this hash_identifier
-        target_dir = os.path.join(base_dir, hash_identifier)
+        target_dir = os.path.join(bucket_name, hash_identifier)
         
         # Check if any files exist in the hash_identifier directory
         logger.debug(f"Checking for existing files in directory: {target_dir}")
