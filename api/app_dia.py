@@ -9,12 +9,16 @@ import numpy as np
 import io
 import subprocess
 import ffmpeg
-
+import sys
+from pathlib import Path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'e2ecloudAdapter'))
 
 
 # Default constants
 DEFAULT_HASH_ID = "default_user_123"
-DEFAULT_BUCKET = "euphonia-dia"
+DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
 STORAGE = "local" # or "gcs" or "e2ebucket"
 if(STORAGE == "gcs"):
     from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
