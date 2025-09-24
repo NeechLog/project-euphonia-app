@@ -99,11 +99,11 @@ def download_file_from_url(url: str) -> bytes:
 
 def convertNPArraytoMP3(audio_array, sample_rate=44100) -> bytes:
     """
-    Convert a numpy array to MP3 bytes using pydub.
+    Convert a numpy array to MP3 bytes using soundfile and a temporary file.
     
     Args:
         audio_array: NumPy array containing audio data
-        sample_rate: Sample rate of the audio (default: 24000)
+        sample_rate: Sample rate of the audio (default: 44100)
         
     Returns:
         bytes: MP3 audio data as bytes
@@ -111,41 +111,33 @@ def convertNPArraytoMP3(audio_array, sample_rate=44100) -> bytes:
     Raises:
         Exception: For any conversion errors
     """
+    import tempfile
+    import os
+    import soundfile as sf
+    
+    temp_fd, temp_path = tempfile.mkstemp(suffix='.mp3')
     try:
-        from pydub import AudioSegment
-        import numpy as np
-        
         # Ensure audio_array is 1D (mono)
         if len(audio_array.shape) > 1:
             audio_array = audio_array.squeeze()
             
-        # Normalize to 16-bit range if needed
-        if np.issubdtype(audio_array.dtype, np.floating):
-            audio_array = (audio_array * 32767).astype(np.int16)
-        elif audio_array.dtype != np.int16:
-            audio_array = audio_array.astype(np.int16)
+        # Write to temporary file
+        sf.write(temp_path, audio_array, sample_rate)
         
-        # Create AudioSegment from numpy array
-        audio_segment = AudioSegment(
-            audio_array.tobytes(),
-            frame_rate=sample_rate,
-            sample_width=audio_array.dtype.itemsize,
-            channels=1
-        )
-        
-        # Export to MP3 in memory
-        with io.BytesIO() as mp3_buffer:
-            audio_segment.export(mp3_buffer, format="mp3", bitrate="128k")
-            mp3_buffer.seek(0)
-            return mp3_buffer.getvalue()
+        # Read the file back as bytes
+        with open(temp_path, 'rb') as f:
+            mp3_data = f.read()
             
-    except Exception as e:
-        error_trace = traceback.format_exc()
-        logger.error(f"Error in convertNPArraytoMP3: {str(e)}")
-        logger.error(f"Audio array shape: {audio_array.shape if hasattr(audio_array, 'shape') else 'N/A'}")
-        logger.error(f"Audio array dtype: {audio_array.dtype if hasattr(audio_array, 'dtype') else 'N/A'}")
-        logger.error(f"Stack trace:\n{error_trace}")
-        raise
+        return mp3_data
+    finally:
+        try:
+            os.close(temp_fd)
+            os.unlink(temp_path)
+        except OSError:
+            error_trace = traceback.format_exc()
+            logger.error(f"Error in log_model_outputs: {str(e)}")
+            logger.error(f"Stack trace:\n{error_trace}")
+            pass  # Ignore errors in cleanup
 
 def log_model_outputs(outputs, audio_array_tensor, text):
     """Log detailed information about model outputs for debugging.
@@ -181,7 +173,6 @@ def log_model_outputs(outputs, audio_array_tensor, text):
         error_trace = traceback.format_exc()
         logger.error(f"Error in log_model_outputs: {str(e)}")
         logger.error(f"Stack trace:\n{error_trace}")
-
 
 def save_debug_sound(audio_arrays, sample_rate=44100):
     """
@@ -250,5 +241,3 @@ def save_debug_sound(audio_arrays, sample_rate=44100):
         error_trace = traceback.format_exc()
         logger.error(f"Error in saving files: {str(e)}")
         logger.error(f"Stack trace:\n{error_trace}")
-
-
