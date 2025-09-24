@@ -14,7 +14,7 @@ from pydub import AudioSegment
 import io
 import time 
 import traceback
-from .local_utils import _resolve_audio_prompt, download_file_from_url, convertNPArraytoMP3, log_model_outputs , save_debug_sound
+from local_adapter.local_utils import _resolve_audio_prompt, download_file_from_url, convertNPArraytoMP3, log_model_outputs , save_debug_sound
 model_imps = "DIA" # "TT"
 if model_imps == "DIA":
     from local_model_dia import get_tts_instance
