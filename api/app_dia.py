@@ -12,7 +12,6 @@ import ffmpeg
 import sys
 from pathlib import Path
 
-from api.local_adapter.local_model import sample_rate
 sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'e2ecloudAdapter'))
@@ -75,10 +74,7 @@ def process_audio():
         # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
         # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
         hashVoiceName = request.form.get('hashVoiceName', DEFAULT_HASH_ID)
-        if(hashVoiceName):
-            training_data = get_oldest_training_data(bucket_name, hashVoiceName)
-        else:
-            training_data = get_oldest_training_data(bucket_name, DEFAULT_HASH_ID)
+        training_data = get_oldest_training_data(bucket_name, hashVoiceName)
         
         if training_data:
             oldest_text = training_data['text']
