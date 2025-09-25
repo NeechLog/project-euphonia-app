@@ -76,6 +76,10 @@ def process_audio():
         hashVoiceName = request.form.get('hashVoiceName', DEFAULT_HASH_ID)
         training_data = get_oldest_training_data(bucket_name, hashVoiceName)
         
+        # Initialize with default values
+        voice_url = None
+        oldest_text = ""
+        voice_data = None
         if training_data:
             oldest_text = training_data['text']
             voice_url = training_data['voice_url']
@@ -90,7 +94,7 @@ def process_audio():
             try:
                 logger.info("Attempting to synthesize speech with cloned voice...")
                 logger.debug(f"Using voice URL: {voice_url}")
-                logger.debug(f"Using training text: {oldest_text[:100]}...")
+                logger.debug(f"Using training text: {oldest_text[:100]}..." if oldest_text else "No training text provided")
                 if(training_data):
                     # Call the synthesis function
                     voice_data = synthesize_speech_with_cloned_voice(
