@@ -11,6 +11,8 @@ import subprocess
 import ffmpeg
 import sys
 from pathlib import Path
+
+from api.local_adapter.local_model import sample_rate
 sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'e2ecloudAdapter'))
@@ -28,9 +30,9 @@ elif(STORAGE=="local"):
     from local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 CLOUD = "local"
 if CLOUD == "gcs":
-    from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice
+    from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
 elif CLOUD == "local":
-    from local_adapter.local_model import synthesize_speech_with_cloned_voice
+    from local_adapter.local_model import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
 
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
@@ -72,20 +74,19 @@ def process_audio():
         bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
         # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
         # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
-        training_data = get_oldest_training_data(bucket_name, DEFAULT_HASH_ID)
+        hashVoiceName = request.form.get('hashVoiceName', DEFAULT_HASH_ID)
+        if(hashVoiceName):
+            training_data = get_oldest_training_data(bucket_name, hashVoiceName)
+        else:
+            training_data = get_oldest_training_data(bucket_name, DEFAULT_HASH_ID)
         
-        if not training_data:
-            return jsonify({
-                'response': 'error',
-                'message': 'No training data found for the default user. Please ensure both text and voice data are available.'
-            }), 400
-            
-        oldest_text = training_data['text']
-        voice_url = training_data['voice_url']
+        if training_data:
+            oldest_text = training_data['text']
+            voice_url = training_data['voice_url']
         
         # Get the text to synthesize from form or use a default
         # TODO:  get the whisper and something to generate text from the voice data coming in, - right now that is ignored. 
-        processed_text = "Basically this is cloned voice test. did you hear any thing. If not check vertex log if something happened there."
+        processed_text = "Basically this is cloned voice test. As transcription is not yet working. did you hear any thing. If not check logs."
         text_to_synthesize = request.form.get('text', processed_text)
         
         # Create a generator to stream the synthesized audio
@@ -94,13 +95,17 @@ def process_audio():
                 logger.info("Attempting to synthesize speech with cloned voice...")
                 logger.debug(f"Using voice URL: {voice_url}")
                 logger.debug(f"Using training text: {oldest_text[:100]}...")
-                
-                # Call the synthesis function
-                voice_data = synthesize_speech_with_cloned_voice(
-                    text_to_synthesize=text_to_synthesize,
-                    clone_from_audio_gcs_url=voice_url,
-                    clone_from_text_transcript=oldest_text
-                )
+                if(training_data):
+                    # Call the synthesis function
+                    voice_data = synthesize_speech_with_cloned_voice(
+                        text_to_synthesize=text_to_synthesize,
+                        clone_from_audio_gcs_url=voice_url,
+                        clone_from_text_transcript=oldest_text
+                    )
+                else:
+                    voice_data  = call_voice_model(
+                        input_text=text_to_synthesize
+                    )
                 
                 if voice_data:
                     logger.debug(f'Starting audio file streaming, size: {len(voice_data)} bytes')

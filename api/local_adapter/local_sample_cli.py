@@ -260,6 +260,8 @@ def clone_voice(
         return True, f"Successfully generated speech with cloned voice and saved to {output_file}"
         
     except Exception as e:
+        import traceback
+        logger.error(traceback.format_exc())
         return False, f"Voice cloning failed: {str(e)}"
 
 def get_base_dir(args_base_dir: Optional[str] = None) -> str:

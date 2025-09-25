@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 SAMPLE_TEXT = "[S1] Dia is an open weights text to dialogue model. [S2] You get full control over scripts and voices. [S1] Wow. Amazing. (laughs) [S2] Try it now on Git hub or Hugging Face."
-GUIDANCE_SCALE_PARAM = 3.0
+GUIDANCE_SCALE_PARAM = 4.0
 TEMPERATURE_PARAM = 1.8
 TOP_P_PARAM = 0.95
 # Constants
@@ -68,7 +68,7 @@ def synthesize_speech_with_cloned_voice(
         audio_data = _resolve_audio_prompt(clone_from_audio_gcs_url)
         tts = get_tts_instance()
         
-        logger.info("Voice cloning not yet implemented - using default voice")
+        logger.info("Voice cloning going in")
         
         # Generate audio
         audio_array, sample_rate = tts.synthesize(
