@@ -285,13 +285,10 @@ def transcribe_audio(
     """
     try:
         # Import here to avoid circular imports
-        from local_model_parakeet import get_transcribe_instance
-        
-        # Get the transcription model instance
-        transcriber = get_transcribe_instance()
-        
+        from local_model_parakeet import transcribe_voice
+          
         # Transcribe the audio file
-        transcription = transcriber.transcribe_voice(
+        transcription = transcribe_voice(
             audio_data_path=audio_file,
             sample_rate=sample_rate
         )
