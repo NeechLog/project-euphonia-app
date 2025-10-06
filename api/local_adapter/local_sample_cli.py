@@ -270,6 +270,38 @@ def get_base_dir(args_base_dir: Optional[str] = None) -> str:
         return args_base_dir
     return os.environ.get("LOCAL_STORAGE_DIR", DEFAULT_BASE_DIR)
 
+def transcribe_audio(
+    audio_file: str,
+    sample_rate: int = 16000
+) -> Tuple[bool, str]:
+    """Transcribe an audio file to text using the local Parakeet model.
+    
+    Args:
+        audio_file: Path to the audio file to transcribe
+        sample_rate: Sample rate of the audio file (default: 16000)
+        
+    Returns:
+        Tuple of (success, result) where result is the transcription text or error message
+    """
+    try:
+        # Import here to avoid circular imports
+        from local_model_parakeet import get_transcribe_instance
+        
+        # Get the transcription model instance
+        transcriber = get_transcribe_instance()
+        
+        # Transcribe the audio file
+        transcription = transcriber.transcribe_voice(
+            audio_data_path=audio_file,
+            sample_rate=sample_rate
+        )
+        
+        return True, f"Transcription: {transcription}"
+        
+    except Exception as e:
+        return False, f"Transcription failed: {str(e)}"
+
+
 def main():
     """Main entry point for the command-line interface."""
     parser = argparse.ArgumentParser(description="Local Sample Manager for Dia TTS")
@@ -316,6 +348,12 @@ def main():
     clone_parser.add_argument('--config-scale', type=float, default=0.3, help='Configuration scale parameter')
     clone_parser.add_argument('--temperature', type=float, default=1.3, help='Temperature parameter')
     clone_parser.add_argument('--top-p', type=float, default=0.95, help='Top-p sampling parameter')
+    
+        # Add transcribe command
+    transcribe_parser = subparsers.add_parser('transcribe', help='Transcribe an audio file')
+    transcribe_parser.add_argument('audio_file', help='Path to the audio file to transcribe')
+    transcribe_parser.add_argument('--sample-rate', type=int, default=16000,
+                                 help='Sample rate of the audio file (default: 16000)')
     
     args = parser.parse_args()
     
@@ -369,6 +407,14 @@ def main():
                 temperature=args.temperature,
                 top_p=args.top_p
             )
+        
+            # Handle commands
+        elif args.command == 'transcribe':
+            success, result = transcribe_audio(
+                audio_file=args.audio_file,
+                sample_rate=args.sample_rate
+            )
+            print("✅ Success!" if success else "❌ Error:", result)
             
         else:
             parser.print_help()

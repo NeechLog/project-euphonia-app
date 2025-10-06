@@ -79,7 +79,7 @@ class Dia_Local_Wrapper:
         with self._lock:
             if self.model is not None:
                 return True
-        logger.info("Loading mock DIA model...")
+        logger.info("Loading DIA model...")
         self.model = Dia.from_pretrained("nari-labs/Dia-1.6B-0626", compute_dtype=self.dtype, device=self.device)
         logger.info(f"Model loaded {self.model}")
         return True

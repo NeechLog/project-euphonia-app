@@ -11,6 +11,8 @@ import subprocess
 import ffmpeg
 import sys
 from pathlib import Path
+import tempfile
+import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
@@ -21,6 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'e2ecloudAdapter'))
 DEFAULT_HASH_ID = "default_user_123"
 DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
 STORAGE = "local" # or "gcs" or "e2ebucket"
+TRANSCRIBE_MODEL = "local" # or "gcs" or "e2ebucket"
 if(STORAGE == "gcs"):
     from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="e2ebucket"):
@@ -32,6 +35,8 @@ if CLOUD == "gcs":
     from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
 elif CLOUD == "local":
     from local_adapter.local_model import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
+if(TRANSCRIBE_MODEL == "local"):
+    from local_adapter.local_model_parakeet import transcribe_voice as transcribe_voice
 
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
@@ -68,14 +73,25 @@ def process_audio():
             
         logger.info(f'Processing audio file: {audio_file.filename}')
         mime_type = audio_file.content_type
-        
+
+        if mime_type != 'audio/wav':
+            return jsonify({'response': 'error', 'message': 'Invalid file type, must be .wav'}), 400
+                # Get the text to synthesize from form or use a default
+        transcribe_result = "Basically this is cloned voice test. As transcription is not yet working. did you hear any thing. If not check logs."
+        try:
+            transcribe_result = _transcribe_audio_file(audio_file)
+        except Exception as e:
+            logger.error(f"Error during transcription: {str(e)}")
+            transcribe_result = "Error happend during transcription. Please check logs"
+
         # Get the oldest training data for the default user
         bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
         # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
         # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
         hashVoiceName = request.form.get('hashVoiceName', DEFAULT_HASH_ID)
+        logger.info(f"Looking for text and voice sample for {hashVoiceName}")
         training_data = get_oldest_training_data(bucket_name, hashVoiceName)
-        
+        logger.debug(f"Found text and voice sample for {hashVoiceName}")
         # Initialize with default values
         voice_url = None
         oldest_text = ""
@@ -83,11 +99,7 @@ def process_audio():
         if training_data:
             oldest_text = training_data['text']
             voice_url = training_data['voice_url']
-        
-        # Get the text to synthesize from form or use a default
-        # TODO:  get the whisper and something to generate text from the voice data coming in, - right now that is ignored. 
-        processed_text = "Basically this is cloned voice test. As transcription is not yet working. did you hear any thing. If not check logs."
-        text_to_synthesize = request.form.get('text', processed_text)
+
         
         # Create a generator to stream the synthesized audio
         def generate():
@@ -98,13 +110,13 @@ def process_audio():
                 if(training_data):
                     # Call the synthesis function
                     voice_data = synthesize_speech_with_cloned_voice(
-                        text_to_synthesize=text_to_synthesize,
+                        text_to_synthesize=transcribe_result,
                         clone_from_audio_gcs_url=voice_url,
                         clone_from_text_transcript=oldest_text
                     )
                 else:
                     voice_data  = call_voice_model(
-                        input_text=text_to_synthesize
+                        input_text=transcribe_result
                     )
                 
                 if voice_data:
@@ -131,6 +143,37 @@ def process_audio():
         logger.error(f'Error processing audio: {str(e)}', exc_info=True)
         return jsonify({'response': 'error', 'message': str(e)}), 500
 
+
+def _transcribe_audio_file(audio_file):
+    """Helper method to handle audio file transcription with temporary file management.
+    
+    Args:
+        audio_file: The uploaded file object
+        
+    Returns:
+        str: The transcription result
+        
+    Raises:
+        Exception: If there's an error during transcription
+    """
+    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
+        try:
+            # Save the uploaded file to the temporary file
+            audio_file.save(temp_audio.name)
+            
+            # Ensure the file is written to disk
+            temp_audio.flush()
+            os.fsync(temp_audio.fileno())
+            
+            # Transcribe the audio file
+            return transcribe_voice(temp_audio.name)
+            
+        finally:
+            # Always clean up the temporary file
+            try:
+                os.unlink(temp_audio.name)
+            except Exception as e:
+                logger.warning(f"Could not delete temporary file {temp_audio.name}: {str(e)}")
 
 @app.route('/transcribe', methods=['POST'])
 def transcribe():
