@@ -8,17 +8,21 @@ dependencies = [
     "cryptography>=46.0.1",
     "ctranslate2==4.6.0",
     "debugpy>=1.8.16",
-    "dia>=0.1.8",
     "faster-whisper==1.1.1",
     "ffmpeg-python>=0.2.0",
     "flask>=1.0.0",
     "google-cloud>=0.34.0",
     "google-cloud-aiplatform>=1.0.0",
-    "nemo-toolkit[asr]>=2.3.0",
+    "nari-tts",
+    "nemo-toolkit[asr]>=2.1.0",
     "pydub>=0.25.1",
     "python-jose[cryptography]>=3.5.0",
     "requests>=2.32.5",
     "soundfile>=0.13.1",
-    "torch>=2.8.0",
-    "transformers>=4.56.1",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
+    "torchvision>=0.21.0",
 ]
+
+[tool.uv.sources]
+nari-tts = { git = "https://github.com/nari-labs/dia.git" }
