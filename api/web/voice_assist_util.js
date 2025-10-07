@@ -61,7 +61,8 @@ async function toggleRecording() {
             onStop: async (blob, mimeType) => {
                 statusText.textContent = "Processing...";
                 const wavResult = await convertAudioBlob(blob, 'wav');
-                await sendAudioToServer(wavResult.blob, wavResult.fileName);
+                const hashVoiceName = document.getElementById('hashVoiceName').value;
+                await sendAudioToServer(wavResult.blob, wavResult.fileName, hashVoiceName);
             },
             onError: (err) => handleRecordingError(err)
         }));
@@ -158,12 +159,14 @@ function updateUIForRecording(recording) {
 }
 
 // Send recorded audio to server
-async function sendAudioToServer(audioBlob, fileName) {
+async function sendAudioToServer(audioBlob, fileName, hashVoiceName) {
     const formData = new FormData();
     //const fileName = getFileNameFromMimeType(mimeType);
     console.log(audioBlob); 
     formData.append('audio', audioBlob, fileName);
-
+    if(hashVoiceName){
+        formData.append('hashVoiceName', hashVoiceName);
+    }
     statusText.textContent = "Uploading audio to server...";
     responseTextElement.textContent = "Processing...";
 

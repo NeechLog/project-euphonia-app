@@ -8,7 +8,6 @@ import os
 import threading
 import atexit
 import soundfile as sf
-from transformers import AutoProcessor, DiaForConditionalGeneration
 from pydub import AudioSegment
 import io
 import time 
