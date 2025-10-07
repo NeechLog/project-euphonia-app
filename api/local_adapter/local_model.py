@@ -1,6 +1,5 @@
 import logging
 from typing import Optional, Tuple, Union
-import torch
 import numpy as np
 from pathlib import Path
 import requests

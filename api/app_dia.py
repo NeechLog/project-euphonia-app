@@ -24,6 +24,10 @@ DEFAULT_HASH_ID = "default_user_123"
 DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
 STORAGE = "local" # or "gcs" or "e2ebucket"
 TRANSCRIBE_MODEL = "local" # or "gcs" or "e2ebucket"
+
+if(TRANSCRIBE_MODEL == "local"):
+    from local_adapter.local_model_parakeet import transcribe_voice as transcribe_voice
+# Storage and voice
 if(STORAGE == "gcs"):
     from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="e2ebucket"):
@@ -35,8 +39,7 @@ if CLOUD == "gcs":
     from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
 elif CLOUD == "local":
     from local_adapter.local_model import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
-if(TRANSCRIBE_MODEL == "local"):
-    from local_adapter.local_model_parakeet import transcribe_voice as transcribe_voice
+
 
 # Configure logging from environment variable
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
