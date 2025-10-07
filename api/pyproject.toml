@@ -19,6 +19,9 @@ dependencies = [
     "python-jose[cryptography]>=3.5.0",
     "requests>=2.32.5",
     "soundfile>=0.13.1",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
+    "torchvision>=0.21.0",
 ]
 
 [tool.uv.sources]
