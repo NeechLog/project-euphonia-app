@@ -296,8 +296,8 @@ def transcribe_audio(
         
     except Exception as e:
         import traceback
-        error_trace = traceback.format_exc()
-        logger.error(f"Transcription failed with error: {str(e)}\n{error_trace}")
+        logger.error(traceback.format_exc())
+        logger.error(f"Transcription failed with error: {str(e)}")
         return False, f"Transcription failed: {str(e)}"
 
 
@@ -409,11 +409,11 @@ def main():
         
             # Handle commands
         elif args.command == 'transcribe':
-            success, result = transcribe_audio(
+            success, message = transcribe_audio(
                 audio_file=args.audio_file,
                 sample_rate=args.sample_rate
             )
-            print("✅ Success!" if success else "❌ Error:", result)
+            print("✅ Success!" if success else "❌ Error:", message)
             
         else:
             parser.print_help()
