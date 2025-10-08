@@ -8,7 +8,6 @@ import threading
 import atexit
 import soundfile as sf
 import time
-from dataclasses import dataclass
 from dia.model import Dia
 from local_utils import log_model_outputs , save_debug_sound
 

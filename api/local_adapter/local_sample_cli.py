@@ -37,6 +37,8 @@ from local_storage import (
     list_all_hash_identifiers,
     get_oldest_training_data
 )
+from local_model_parakeet import transcribe_voice
+
 from local_model import (
     synthesize_speech_with_cloned_voice,
     call_vertex_Dia_model
@@ -284,8 +286,6 @@ def transcribe_audio(
         Tuple of (success, result) where result is the transcription text or error message
     """
     try:
-        # Import here to avoid circular imports
-        from local_model_parakeet import transcribe_voice
           
         # Transcribe the audio file
         transcription = transcribe_voice(
