@@ -286,7 +286,6 @@ def transcribe_audio(
         Tuple of (success, result) where result is the transcription text or error message
     """
     try:
-          
         # Transcribe the audio file
         transcription = transcribe_voice(
             audio_data_path=audio_file,
@@ -296,6 +295,9 @@ def transcribe_audio(
         return True, f"Transcription: {transcription}"
         
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Transcription failed with error: {str(e)}\n{error_trace}")
         return False, f"Transcription failed: {str(e)}"
 
 
