@@ -19,7 +19,7 @@ let messageBox;
 function initVoiceAssist() {
     // Get UI elements
     recordButton = document.getElementById('recordButton');
-    recordV0iceButton = document.getElementById('recordV0iceButton');
+    recordV0iceButton = document.getElementById('recordV0ice');
     statusText = document.getElementById('statusText');
     responseTextElement = document.getElementById('responseText');
     audioPlayback = document.getElementById('audioPlayback');
