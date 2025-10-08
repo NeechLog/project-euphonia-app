@@ -1,7 +1,11 @@
-0. cd api
-1. Install UV
-2. uv sync
-3. uv pip install git+https://github.com/nari-labs/dia.git
-4. cd ..
-5. source api/.venv/bin/activate
-6. python api/app_dia.py
+cd api
+Install UV
+uv sync
+uv pip install git+https://github.com/nari-labs/dia.git
+uv pip uninstall onnx protobuf
+uv pip install onnx protobuf
+uv pip uninstall numpy
+uv pip install "numpy<2.0"
+cd ..
+source api/.venv/bin/activate
+python api/app_dia.py
