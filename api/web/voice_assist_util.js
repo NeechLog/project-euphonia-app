@@ -24,6 +24,7 @@ function initVoiceAssist() {
     responseTextElement = document.getElementById('responseText');
     audioPlayback = document.getElementById('audioPlayback');
     messageBox = document.getElementById('messageBox');
+    recordVoiceSection = document.getElementById('responseSection');
     // Initial check for browser support
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         recordV0iceButton.disabled = true;
@@ -34,12 +35,13 @@ function initVoiceAssist() {
     loadVoiceModels(document.getElementById('hashVoiceName'));
     // Add event listeners
     recordV0iceButton.addEventListener('click', toggleRecording);
-    recordButton.addEventListener('click', hideOtherSections(document.getElementById('responseSection')));
+    recordButton.addEventListener('click', () => {
+        hideOtherSections(recordVoiceSection);
+    });
 }
 
 // Toggle recording state
 async function toggleRecording() {
-    hideOtherSections(document.getElementById('responseSection'));
     console.log("Toggle called" );
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         showMessage("getUserMedia not supported on your browser!");
