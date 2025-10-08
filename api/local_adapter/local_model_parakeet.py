@@ -47,12 +47,9 @@ class Transcribe_Local_Model:
     This is a mock implementation that returns sample transcriptions.
     """
     
-    def __init__(self, device: str = None):
+    def __init__(self):
         """Initialize the model."""
-        self.device = device or ('cuda' if torch.cuda.is_available() else 'cpu')
-        logger.info(f"Device is {self.device}")
         self.model = None
-        self._lock = threading.Lock()
         self.sample_transcriptions = [
             "This is a sample transcription from the mock model.",
             "The quick brown fox jumps over the lazy dog.",
