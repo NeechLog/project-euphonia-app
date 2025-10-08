@@ -114,12 +114,9 @@
 <body>
     <div class="container">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Voice Assist Web App</h1>
-        <button id="recordButton" class="btn btn-record">
-            <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
-            Record Voice
-        </button>
+        <button id="recordButton" class="btn btn-record">Clone voice</button>
         <button id="trainModelButton" class="btn btn-record ml-4">Sample voice</button>
-        <button id="cloneVoiceButton" class="btn btn-record ml-4">Clone Voice</button>
+        <button id="cloneVoiceButton" class="btn btn-record ml-4">Text to voice</button>
 
         <div id="statusText" class="status-text">Press "Record Voice" to start.</div>
         
@@ -131,6 +128,9 @@
             <h3>Server Response:</h3>
             <div id="responseText" class="response-text">Waiting for server...</div>
             <audio id="audioPlayback" controls class="hidden"></audio>
+            <button id="recordV0ice" class="btn btn-record">
+                <img src="icons/mic-icon.svg" alt="Microphone" class="inline-block mr-2 align-text-bottom" width="20" height="20">
+            </button>
         </div>
 
         <div id="trainin_model" class="mt-6 hidden">

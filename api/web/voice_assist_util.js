@@ -19,20 +19,22 @@ let messageBox;
 function initVoiceAssist() {
     // Get UI elements
     recordButton = document.getElementById('recordButton');
+    recordV0iceButton = document.getElementById('recordV0iceButton');
     statusText = document.getElementById('statusText');
     responseTextElement = document.getElementById('responseText');
     audioPlayback = document.getElementById('audioPlayback');
     messageBox = document.getElementById('messageBox');
     // Initial check for browser support
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        recordButton.disabled = true;
+        recordV0iceButton.disabled = true;
         statusText.textContent = "Microphone access is not supported by your browser.";
         showMessage("Your browser doesn't support microphone access. Please try a different browser.");
         return;
     }
     loadVoiceModels(document.getElementById('hashVoiceName'));
     // Add event listeners
-    recordButton.addEventListener('click', toggleRecording);
+    recordV0iceButton.addEventListener('click', toggleRecording);
+    recordButton.addEventListener('click', hideOtherSections(document.getElementById('responseSection')));
 }
 
 // Toggle recording state
@@ -140,22 +142,24 @@ function stopRecording() {
 function updateUIForRecording(recording) {
     console.log("Update UI for recording called. Param ",recording);
     if (recording) {
-        recordButton.innerHTML = `
+        recordV0iceButton.innerHTML = `
             <img src="icons/stop-filled-icon.svg" alt="Stop" class="inline-block mr-2 align-text-bottom" width="20" height="20">
             Stop Recording`;
-        recordButton.classList.remove('btn-record');
-        recordButton.classList.add('btn-stop');
+        recordV0iceButton.classList.remove('btn-record');
+        recordV0iceButton.classList.add('btn-stop');
         statusText.textContent = "Recording... Click to stop.";
+        responseTextElement.textContent = "Waiting for server...";
+        audioPlayback.classList.add('hidden');
+        audioPlayback.src = '';
     } else {
-        recordButton.innerHTML = `
+        recordV0iceButton.innerHTML = `
             <img src="icons/mic-icon.svg" alt="Record" class="inline-block mr-2 align-text-bottom" width="20" height="20">
             Record Voice`;
-        recordButton.classList.remove('btn-stop');
-        recordButton.classList.add('btn-record');
+        recordV0iceButton.classList.remove('btn-stop');
+        recordV0iceButton.classList.add('btn-record');
+
     }
-    responseTextElement.textContent = "Waiting for server...";
-    audioPlayback.classList.add('hidden');
-    audioPlayback.src = '';
+
 }
 
 // Send recorded audio to server
