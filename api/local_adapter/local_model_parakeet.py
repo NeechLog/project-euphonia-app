@@ -58,6 +58,7 @@ class Transcribe_Local_Model:
             "Hello, how can I help you today?"
         ]
         self.counter = 0
+        self._lock = threading.Lock()
 
     def load_model(self) -> bool:
         """Mock model loading function."""
