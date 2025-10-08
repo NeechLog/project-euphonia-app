@@ -358,7 +358,8 @@ def main():
     
     try:
         base_dir = get_base_dir(getattr(args, 'base_dir', None))
-        
+        success = False
+        message = "No command executed yet"
         if args.command == 'upload':
             success, message = upload_sample_pair(
                 base_dir=base_dir,
