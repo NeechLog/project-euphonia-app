@@ -4,6 +4,9 @@ from flask import Flask, request, jsonify
 import os
 import tempfile
 import soundfile as sf
+from pydub import AudioSegment
+from pydub.exceptions import CouldntDecodeError
+from io import BytesIO
 from flask import Response
 import numpy as np
 import io
@@ -24,6 +27,8 @@ DEFAULT_HASH_ID = "default_user_123"
 DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
 STORAGE = "local" # or "gcs" or "e2ebucket"
 TRANSCRIBE_MODEL = "local" # or "gcs" or "e2ebucket"
+
+#TODO: Review and ensure a single place where temporary sound file is created, pass it's handle around everywhere. In case of sample - same thing 
 
 if(TRANSCRIBE_MODEL == "local"):
     from local_adapter.local_model_parakeet import transcribe_voice as transcribe_voice
@@ -189,52 +194,54 @@ def transcribe():
     if not audio.filename.lower().endswith('.wav'):
         return jsonify({'response': 'error', 'message': 'Invalid file type, must be .wav'}), 400
 
-    # Save to temp file
-    _, tmp_wav_file = tempfile.mkstemp(suffix='.wav')
-    audio.save(tmp_wav_file)
+    if(is_valid_wav(audio)):
+        pred = _transcribe_audio_file(audio)
+    else:
+        pred = "Invalid WAV file"
 
-    # Validate WAV file using soundfile
-    try:
-        audio_array, samplerate = sf.read(tmp_wav_file)
-        if len(audio_array.shape) != 1:
-            raise ValueError('Audio must be mono')
-        if samplerate != 16000:
-            raise ValueError('Audio must be 16kHz')
-    except Exception as e:
-        os.remove(tmp_wav_file)
-        return jsonify({'response': 'error', 'message': f'Invalid WAV file: {str(e)}'}), 400
-
-    # Dummy transcription (replace with real model)
-    pred = 'dummy transcript'
-
-    os.remove(tmp_wav_file)
     return jsonify({'response': 'success!', 'transcript': pred})
 
 
 @app.route('/gendia', methods=['POST'])
 def gendia():
     try:
+        # Required parameter
         phrase = request.form.get('phrase')
         if not phrase:
             logger.error('No phrase provided in request')
             return jsonify({'response': 'error', 'message': 'No phrase provided'}), 400
 
-        logger.info(f'Received gendia request with phrase: {phrase}')
-        hash_id = request.form.get('hash_id')
+        # Optional parameters
+        sample_phrase = request.form.get('samplePhrase')
         
-        # Use default hash_id if not provided
-        if not hash_id:
-            hash_id = DEFAULT_HASH_ID
-            logger.info(f'Using default hash_id: {hash_id}')
-
-        bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
-        training_data = get_oldest_training_data(bucket_name, hash_id)
-        if not training_data:
+        if sample_phrase:
+            logger.info(f'Received sample phrase: {sample_phrase}')
+            # TODO: Process sample_phrase as needed
+        
+        sample_voice = request.files.get('sampleVoice')    
+        if sample_voice:
+            logger.info(f'Received sample voice file: {sample_voice.filename}')
+            # Validate WAV file using the existing validation function
+            is_valid, error_msg = is_valid_wav(sample_voice, check_format=True)
+            if not is_valid:
+                return jsonify({
+                    'response': 'error',
+                    'message': f'Invalid WAV file: {error_msg}'
+                }), 400
+        
+        hash_id = request.form.get('hash_id')
+        training_data, error = prepare_training_data(
+            phrase=phrase,
+            sample_phrase=sample_phrase,
+            sample_voice=sample_voice if sample_voice and sample_phrase else None,
+            hash_id=hash_id
+        )
+        if error:
             return jsonify({
                 'response': 'error',
-                'message': 'No training data found for the user. Please ensure both text and voice data are available.'
+                'message': error
             }), 400
-
+        
         voice_data = synthesize_speech_with_cloned_voice(
                     text_to_synthesize=phrase,
                     clone_from_audio_gcs_url=training_data['voice_url'],
@@ -244,6 +251,66 @@ def gendia():
     except Exception as e:
         logger.error(f'Error processing gendia request: {str(e)}', exc_info=True)
         return jsonify({'response': 'error', 'message': str(e)}), 500
+    finally :
+        if '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
+            try:
+                os.unlink(training_data['_temp_file'])
+                logger.info(f'Cleaned up temporary file: {training_data["_temp_file"]}')
+            except Exception as e:
+                logger.error(f'Error cleaning up temporary file: {str(e)}')
+
+def prepare_training_data(phrase, sample_phrase=None, sample_voice=None, hash_id=None):
+    """
+    Prepares training data from either provided samples or existing storage.
+    
+    Args:
+        phrase: The input phrase to process
+        sample_phrase: Optional text sample for training
+        sample_voice: Optional voice sample file for training
+        hash_id: Optional hash ID for looking up existing training data
+        
+    Returns:
+        dict: Training data with text and voice URL
+        str: Error message if any, None otherwise
+    """
+    if sample_phrase and sample_voice:
+        logger.info('Using provided sample phrase and voice for voice generation in request')
+        
+        # Create a temporary file for the voice data
+        try:
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_voice:
+                # Save the uploaded voice data to the temporary file
+                sample_voice.save(tmp_voice.name)
+                # Create a file URL for the temporary file
+                voice_url = f'file://{tmp_voice.name}'
+                logger.info(f'Created temporary voice file at: {voice_url}')
+                
+                return {
+                    'text': sample_phrase,
+                    'voice_url': voice_url,
+                    '_temp_file': tmp_voice.name  # Store temp file path for cleanup -
+                }, None
+                
+        except Exception as e:
+            error_msg = f'Error processing voice sample: {str(e)}'
+            logger.error(error_msg)
+            return None, error_msg
+    
+    # Fall back to existing training data
+    logger.info('Looking up training data from storage')
+    if not hash_id:
+        hash_id = DEFAULT_HASH_ID
+        logger.info(f'Using default hash_id: {hash_id}')
+
+    bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
+    training_data = get_oldest_training_data(bucket_name, hash_id)
+    if not training_data:
+        error_msg = 'No training data found. Please provide samplePhrase and sampleVoice or ensure voice data is available.'
+        logger.error(error_msg)
+        return None, error_msg
+    
+    return training_data, None
+
 
 def generate_sound_wave(phrase):
     try:
@@ -382,6 +449,65 @@ def get_voice_models():
             'status': 'error',
             'message': error_msg
         }), 500
+
+
+def is_valid_wav(file_storage, check_format=True):
+    """
+    Validates if the uploaded file is a valid WAV file with optional format validation.
+    
+    Args:
+        file_storage: FileStorage object from Flask request.files
+        check_format: If True, validates audio format (mono, 16kHz)
+        
+    Returns:
+        tuple: (is_valid: bool, error_message: str)
+    """
+    # Create a temporary file at the beginning
+    tmp_fd, tmp_wav_file = tempfile.mkstemp(suffix='.wav')
+    try:
+        # Read the file content and write to temp file
+        file_content = file_storage.read()
+        
+        # Check if the file is empty
+        if not file_content:
+            return False, "Empty file provided"
+            
+        # Write content to the temporary file
+        with os.fdopen(tmp_fd, 'wb') as f:
+            f.write(file_content)
+        
+        # First, try to validate as WAV using pydub
+        try:
+            audio = AudioSegment.from_file(tmp_wav_file, format="wav")
+            if len(audio) <= 0:
+                return False, "Audio file has zero duration"
+        except CouldntDecodeError:
+            return False, "File is not a valid WAV file"
+        
+        # Then perform format validation if requested
+        if check_format:
+            try:
+                # Validate WAV format using soundfile
+                audio_array, samplerate = sf.read(tmp_wav_file)
+                if len(audio_array.shape) != 1:
+                    return False, "Audio must be mono"
+                if samplerate != 16000:
+                    return False, f"Audio must be 16kHz (got {samplerate}Hz)"
+            except Exception as e:
+                return False, f"Error validating audio format: {str(e)}"
+            
+        return True, ""
+        
+    except Exception as e:
+        return False, f"Error processing audio file: {str(e)}"
+    finally:
+        # Clean up the temporary file
+        try:
+            os.unlink(tmp_wav_file)
+        except Exception:
+            pass
+        # Reset file pointer for any potential future use
+        file_storage.seek(0)
 
 
 if __name__ == '__main__':
