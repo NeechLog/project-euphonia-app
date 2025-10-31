@@ -1,6 +1,3 @@
-// Configuration
-const SERVER_URL = window.location.origin+ "/process_audio";
-console.log("SERVER_URL: ", SERVER_URL);
 
 // State Management
 let isRecording = false;
@@ -177,7 +174,7 @@ async function sendAudioToServer(audioBlob, fileName, hashVoiceName) {
     responseTextElement.textContent = "Processing...";
 
     try {
-        const response = await fetch(SERVER_URL, {
+        const response = await fetch('/process_audio', {
             method: 'POST',
             body: formData
         });

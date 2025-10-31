@@ -9,8 +9,8 @@ dependencies = [
     "ctranslate2==4.6.0",
     "debugpy>=1.8.16",
     "faster-whisper==1.1.1",
+    "fastapi>=0.110.0",
     "ffmpeg-python>=0.2.0",
-    "flask>=1.0.0",
     "google-cloud>=0.34.0",
     "google-cloud-aiplatform>=1.0.0",
     "nemo-toolkit[asr]>=2.3.3",
@@ -19,7 +19,12 @@ dependencies = [
     "soundfile>=0.13.1",
     "torch>=2.8.0",
     "torchaudio>=2.8.0",
+    "uvicorn[standard]>=0.28.0",
 ]
+
+[tool.setuptools]
+py-modules = ["app_dia", "app_faster_whisper", "app_whisper"]
+packages = ["local_adapter", "gcloudAdapter", "e2ecloudAdapter", "custom_tiny_whisper_model"]
 
 [[tool.uv.index]]
 url = "https://download.pytorch.org/whl/cu130"

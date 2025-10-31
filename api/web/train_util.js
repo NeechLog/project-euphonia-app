@@ -117,7 +117,7 @@ async function sendTrainAudioToServer(audioBlob, fileName, text, hashName) {
         formData.append('hash_id',hashName);
     }
     try {
-        const response = await fetch(window.location.origin + '/train_audio', {
+        const response = await fetch('/train_audio', {
             method: 'POST',
             body: formData
         });
