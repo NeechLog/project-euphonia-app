@@ -80,12 +80,15 @@ async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form
 
         logger.info(f'Processing audio file: {audio.filename}')
         
-        transcribe_result = "Basically default transcription result, this should never appear, unless audi check failed. did you hear any thing?"
+        transcribe_result = "Basically default transcription result, this should never appear, unless audio check failed. did you hear any thing?"
         try:
-            transcribe_result = _transcribe_audio_file(audio)
+            transcribe_result = await _transcribe_audio_file(audio)
+        except HTTPException as he:
+            logger.error(f"HTTP error during transcription: {str(he.detail)}")
+            transcribe_result = f"Error during transcription: {he.detail}"
         except Exception as e:
-            logger.error(f"Error during transcription: {str(e)}")
-            transcribe_result = "Error happend during transcription. Please check logs"
+            logger.error(f"Unexpected error during transcription: {str(e)}", exc_info=True)
+            transcribe_result = "An unexpected error occurred during transcription. Please check logs"
 
         # Get the oldest training data for the default user
         bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
@@ -131,14 +134,17 @@ async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form
                 logger.error(f"Synthesis failed: {str(e)}", exc_info=True)
                 yield b''
         
+        # Create headers with the transcription result
+        headers = {
+            'X-Response-Text': str(transcribe_result),
+            'Content-Disposition': f'attachment; filename=processed_{audio.filename}'
+        }
+        
         # Return the synthesized audio as a stream
         return StreamingResponse(
             generate(),
             media_type='audio/wav',
-            headers={
-                'X-Response-Text': transcribe_result,
-                'Content-Disposition': f'attachment; filename=processed_{audio.filename}'
-            }
+            headers=headers
         )
         
     except Exception as e:
