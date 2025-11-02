@@ -339,7 +339,7 @@ async def train_audio(
 
                 
         # Read audio file data
-        audio_data = audio.read()
+        audio_data = await audio.read()
         # Use default hash_id if not provided
         if not hash_id:
             hash_id = DEFAULT_HASH_ID
