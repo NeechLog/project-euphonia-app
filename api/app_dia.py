@@ -54,7 +54,12 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 logger.debug('Starting FastAPI server')
 # Serve static files from the 'web' directory
-app.mount("/web", StaticFiles(directory="web"), name="web")
+import os
+from pathlib import Path
+
+# Get the absolute path to the web directory
+web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
+app.mount("/web", StaticFiles(directory=web_dir), name="web")
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
 
@@ -455,4 +460,4 @@ def is_valid_wav(file_storage, check_format=True):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=50001)
+    uvicorn.run(app, host="0.0.0.0", port=60001)
