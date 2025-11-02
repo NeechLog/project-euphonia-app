@@ -1,13 +1,12 @@
 import logging
-from re import A
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 import os
 import tempfile
 import soundfile as sf
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
 from io import BytesIO
-from flask import Response
 import numpy as np
 import io
 import subprocess
@@ -51,43 +50,33 @@ log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__,static_url_path='/web', static_folder='web')
-logger.debug('Starting Flask server on port 5000')
-logger.debug('Static files path: %s', app.static_url_path)
-logger.debug('Static files root: %s', app.static_folder)
-logger.debug('Static files url: %s', app.static_url_path)
-logger.debug(' files root: %s', app.root_path)
+app = FastAPI()
+logger.debug('Starting FastAPI server')
+# Serve static files from the 'web' directory
+app.mount("/web", StaticFiles(directory="web"), name="web")
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
 
     # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
     # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-@app.route('/process_audio', methods=['POST'])
-def process_audio():
+@app.post('/process_audio')
+async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID)):
     """
     Endpoint to receive an audio file and stream it back.
     Accepts a WAV file in the 'wav' form field.
     Returns the same audio as a stream.
     """
-    logger.debug("Request details: %s", request)
+    logger.debug(f"Request details: audio filename: {audio.filename}, hashVoiceName: {hashVoiceName}")
     try:
         # Check if file part is present
-        if 'audio' not in request.files:
-            return jsonify({'response': 'error', 'message': 'No audio file part in request'}), 400
+        if audio.content_type != 'audio/wav':
+            raise HTTPException(status_code=400, detail='Invalid file type, must be .wav')
 
-        audio_file = request.files['audio']
-        if audio_file.filename == '':
-            return jsonify({'response': 'error', 'message': 'No selected file'}), 400
-            
-        logger.info(f'Processing audio file: {audio_file.filename}')
-        mime_type = audio_file.content_type
-
-        if mime_type != 'audio/wav':
-            return jsonify({'response': 'error', 'message': 'Invalid file type, must be .wav'}), 400
-                # Get the text to synthesize from form or use a default
-        transcribe_result = "Basically this is cloned voice test. As transcription is not yet working. did you hear any thing. If not check logs."
+        logger.info(f'Processing audio file: {audio.filename}')
+        
+        transcribe_result = "Basically default transcription result, this should never appear, unless audi check failed. did you hear any thing?"
         try:
-            transcribe_result = _transcribe_audio_file(audio_file)
+            transcribe_result = _transcribe_audio_file(audio)
         except Exception as e:
             logger.error(f"Error during transcription: {str(e)}")
             transcribe_result = "Error happend during transcription. Please check logs"
@@ -96,7 +85,6 @@ def process_audio():
         bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
         # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
         # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
-        hashVoiceName = request.form.get('hashVoiceName', DEFAULT_HASH_ID)
         logger.info(f"Looking for text and voice sample for {hashVoiceName}")
         training_data = get_oldest_training_data(bucket_name, hashVoiceName)
         logger.debug(f"Found text and voice sample for {hashVoiceName}")
@@ -138,18 +126,18 @@ def process_audio():
                 yield b''
         
         # Return the synthesized audio as a stream
-        return Response(
+        return StreamingResponse(
             generate(),
-            mimetype='audio/wav',
+            media_type='audio/wav',
             headers={
                 'X-Response-Text': transcribe_result,
-                'Content-Disposition': f'attachment; filename=processed_{audio_file.filename}'
+                'Content-Disposition': f'attachment; filename=processed_{audio.filename}'
             }
         )
         
     except Exception as e:
         logger.error(f'Error processing audio: {str(e)}', exc_info=True)
-        return jsonify({'response': 'error', 'message': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def _transcribe_audio_file(audio_file):
@@ -183,53 +171,33 @@ def _transcribe_audio_file(audio_file):
             except Exception as e:
                 logger.warning(f"Could not delete temporary file {temp_audio.name}: {str(e)}")
 
-@app.route('/transcribe', methods=['POST'])
-def transcribe():
-    # Check if file part is present
-    if 'wav' not in request.files:
-        return jsonify({'response': 'error', 'message': 'No wav file part in request'}), 400
-    audio = request.files['wav']
-    if audio.filename == '':
-        return jsonify({'response': 'error', 'message': 'No selected file'}), 400
-    if not audio.filename.lower().endswith('.wav'):
-        return jsonify({'response': 'error', 'message': 'Invalid file type, must be .wav'}), 400
-
-    if(is_valid_wav(audio)):
-        pred = _transcribe_audio_file(audio)
+@app.post('/transcribe')
+async def transcribe(wav: UploadFile = File(...)):
+    if(is_valid_wav(wav)):
+        pred = _transcribe_audio_file(wav)
     else:
         pred = "Invalid WAV file"
 
-    return jsonify({'response': 'success!', 'transcript': pred})
+    return {'response': 'success!', 'transcript': pred}
 
 
-@app.route('/gendia', methods=['POST'])
-def gendia():
+@app.post('/gendia')
+async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sample_voice: UploadFile = File(None), hash_id: str = Form(DEFAULT_HASH_ID)):
     try:
         # Required parameter
-        phrase = request.form.get('phrase')
         if not phrase:
             logger.error('No phrase provided in request')
-            return jsonify({'response': 'error', 'message': 'No phrase provided'}), 400
-
-        # Optional parameters
-        sample_phrase = request.form.get('samplePhrase')
+            raise HTTPException(status_code=400, detail='No phrase provided')
         
         if sample_phrase:
             logger.info(f'Received sample phrase: {sample_phrase}')
-            # TODO: Process sample_phrase as needed
-        
-        sample_voice = request.files.get('sampleVoice')    
+       
         if sample_voice:
             logger.info(f'Received sample voice file: {sample_voice.filename}')
-            # Validate WAV file using the existing validation function
             is_valid, error_msg = is_valid_wav(sample_voice, check_format=True)
             if not is_valid:
-                return jsonify({
-                    'response': 'error',
-                    'message': f'Invalid WAV file: {error_msg}'
-                }), 400
+               raise HTTPException(status_code=400, detail=f'Invalid WAV file: {error_msg}')
         
-        hash_id = request.form.get('hash_id')
         training_data, error = prepare_training_data(
             phrase=phrase,
             sample_phrase=sample_phrase,
@@ -237,20 +205,17 @@ def gendia():
             hash_id=hash_id
         )
         if error:
-            return jsonify({
-                'response': 'error',
-                'message': error
-            }), 400
+            raise HTTPException(status_code=400, detail=error)
         
         voice_data = synthesize_speech_with_cloned_voice(
                     text_to_synthesize=phrase,
                     clone_from_audio_gcs_url=training_data['voice_url'],
                     clone_from_text_transcript=training_data['text']
                 )
-        return Response(voice_data, mimetype='audio/wav')
+        return StreamingResponse(BytesIO(voice_data), media_type='audio/wav')
     except Exception as e:
         logger.error(f'Error processing gendia request: {str(e)}', exc_info=True)
-        return jsonify({'response': 'error', 'message': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
     finally :
         if '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
             try:
@@ -347,8 +312,12 @@ def generate_sound_wave(phrase):
         raise
 
 
-@app.route('/train_audio', methods=['POST'])
-def train_audio():
+@app.post('/train_audio')
+async def train_audio(
+    audio: UploadFile = File(...),
+    text: str = Form(...),
+    hash_id: str = Form(None)
+):
     """
     Endpoint to receive an audio file, text, and hash_id for training.
     Accepts an audio file in the 'audio' form field, 'text' and 'hash_id' as form data.
@@ -356,29 +325,20 @@ def train_audio():
     """
     try:
         # Check if required parts are present
-        if 'audio' not in request.files:
-            return jsonify({'response': 'error', 'message': 'No audio file part in request'}), 400
+        if not audio:
+            raise HTTPException(status_code=400, detail='No audio file part in request')
             
-        text = request.form.get('text')    
         if not text:
-            return jsonify({
-                'response': 'error',
-                'message': 'Text is a required parameter'
-            }), 400
-            
-        audio_file = request.files['audio']
-        if audio_file.filename == '':
-            return jsonify({'response': 'error', 'message': 'No selected file'}), 400
+             raise HTTPException(status_code=400, detail='Text is a required parameter')
+
                 
         # Read audio file data
-        audio_data = audio_file.read()
-        #get Hash
-        hash_id = request.form.get('hash_id')       
+        audio_data = audio.read()
         # Use default hash_id if not provided
         if not hash_id:
             hash_id = DEFAULT_HASH_ID
             logger.info(f'Using default hash_id: {hash_id}')
-        logger.info(f'Training audio file: {audio_file.filename} for hash_id: {hash_id}')
+        logger.info(f'Training audio file: {audio.filename} for hash_id: {hash_id}')
         # Upload to GCS
         try:
             bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
@@ -389,38 +349,26 @@ def train_audio():
                 hash_identifier=hash_id,
                 text_data=text,
                 voice_data_bytes=audio_data,
-                audio_filename=audio_file.filename
+                audio_filename=audio.filename
             )
         except Exception as e:
             logger.error(f'GCS upload failed: {str(e)}', exc_info=True)
-            return jsonify({
-                'response': 'error',
-                'message': f'Failed to upload to storage: {str(e)}'
-            }), 500
+            raise HTTPException(status_code=500, detail=f'Failed to upload to storage: {str(e)}')
         
         if not text_url or not voice_url:
-            return jsonify({
-                'response': 'error',
-                'message': 'Failed to upload training data to storage'
-            }), 500
+            raise HTTPException(status_code=500, detail='Failed to upload training data to storage')
+
             
-        return jsonify({
-            'response': 'success',
-            'message': 'Training data uploaded successfully',
-            'text_url': text_url,
-            'voice_url': voice_url
-        })
+        return {'response': 'success', 'message': 'Training data uploaded successfully', 'text_url': text_url, 'voice_url': voice_url}
         
     except Exception as e:
         logger.error(f'Error in train_audio: {str(e)}', exc_info=True)
-        return jsonify({
-            'response': 'error',
-            'message': f'Failed to process training data: {str(e)}'
-        }), 500
+        raise HTTPException(status_code=500, detail=f'Failed to process training data: {str(e)}')
 
 
-@app.route('/get_voice_models', methods=['GET'])
-def get_voice_models():
+
+@app.get('/get_voice_models')
+async def get_voice_models(bucket: str = None):
     """
     Endpoint to retrieve a list of all available voice models (hash identifiers) from the GCS bucket.
     
@@ -430,25 +378,19 @@ def get_voice_models():
     """
     try:
         # First try to get bucket name from request parameters, then from environment, then use default
-        bucket_name = request.args.get('bucket') or os.getenv('EUPHONIA_DIA_GCS_BUCKET', DEFAULT_BUCKET)
+        bucket_name = bucket or os.getenv('EUPHONIA_DIA_GCS_BUCKET', DEFAULT_BUCKET)
         logger.info(f"Fetching all voice models from bucket: {bucket_name}")
         
         # Get all hash identifiers (voice models)
         voice_models = list_all_hash_identifiers(bucket_name)
         
         logger.info(f"Found {len(voice_models)} voice models")
-        return jsonify({
-            'status': 'success',
-            'voice_models': voice_models
-        })
+        return {'status': 'success', 'voice_models': voice_models}
         
     except Exception as e:
         error_msg = f"Error fetching voice models: {str(e)}"
         logger.error(error_msg)
-        return jsonify({
-            'status': 'error',
-            'message': error_msg
-        }), 500
+        raise HTTPException(status_code=500, detail=error_msg)
 
 
 def is_valid_wav(file_storage, check_format=True):
@@ -510,5 +452,6 @@ def is_valid_wav(file_storage, check_format=True):
         file_storage.seek(0)
 
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=50001)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=50001)
