@@ -146,22 +146,35 @@ async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def _transcribe_audio_file(audio_file):
+async def _transcribe_audio_file(audio_file):
     """Helper method to handle audio file transcription with temporary file management.
     
     Args:
-        audio_file: The uploaded file object
+        audio_file: The uploaded file object (FastAPI's UploadFile)
         
     Returns:
         str: The transcription result
         
     Raises:
-        Exception: If there's an error during transcription
+        HTTPException: If the audio file is invalid or there's an error during transcription
     """
+    # Validate the audio file first
+    is_valid, error_msg = await is_valid_wav(audio_file, check_format=True)
+    if not is_valid:
+        logger.error(f"Invalid audio file: {error_msg}")
+        raise HTTPException(status_code=400, detail=f"Invalid audio file: {error_msg}")
+    
+    # Reset file pointer after validation
+    await audio_file.seek(0)
+    
+    # Create a temporary file with a .wav extension
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
         try:
-            # Save the uploaded file to the temporary file
-            audio_file.save(temp_audio.name)
+            # Read the uploaded file content
+            contents = await audio_file.read()
+            
+            # Write the content to the temporary file
+            temp_audio.write(contents)
             
             # Ensure the file is written to disk
             temp_audio.flush()
@@ -180,7 +193,7 @@ def _transcribe_audio_file(audio_file):
 @app.post('/transcribe')
 async def transcribe(wav: UploadFile = File(...)):
     if(is_valid_wav(wav)):
-        pred = _transcribe_audio_file(wav)
+        pred = await _transcribe_audio_file(wav)
     else:
         pred = "Invalid WAV file"
 
@@ -399,7 +412,7 @@ async def get_voice_models(bucket: str = None):
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-def is_valid_wav(file_storage, check_format=True):
+async def is_valid_wav(file_storage, check_format=True):
     """
     Validates if the uploaded file is a valid WAV file with optional format validation.
     
@@ -414,7 +427,7 @@ def is_valid_wav(file_storage, check_format=True):
     tmp_fd, tmp_wav_file = tempfile.mkstemp(suffix='.wav')
     try:
         # Read the file content and write to temp file
-        file_content = file_storage.read()
+        file_content = await file_storage.read()
         
         # Check if the file is empty
         if not file_content:
