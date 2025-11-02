@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 import os
 import tempfile
 import soundfile as sf
