@@ -474,7 +474,7 @@ async def is_valid_wav(file_storage, check_format=True):
         except Exception:
             pass
         # Reset file pointer for any potential future use
-        file_storage.seek(0)
+        await file_storage.seek(0)
 
 
 if __name__ == "__main__":
