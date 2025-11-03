@@ -33,7 +33,7 @@ def _resolve_audio_prompt(audio_source: str | None) -> torch.Tensor | str | None
         # Handle web URL
         if parsed_url.scheme in ('http', 'https'):
             audio_bytes = download_file_from_url(audio_source)
-            # Convert bytes to file-like object for soundfile
+            # Convert bytes to file-like object for soundfile - TODO: Optimize and validate.
             with io.BytesIO(audio_bytes) as audio_file:
                 audio_array, sample_rate = sf.read(audio_file, dtype='float32')
         

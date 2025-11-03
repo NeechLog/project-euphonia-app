@@ -455,11 +455,16 @@ async def is_valid_wav(file_storage, check_format=True):
         if check_format:
             try:
                 # Validate WAV format using soundfile
-                audio_array, samplerate = sf.read(tmp_wav_file)
+                audio_array, samplerate = sf.read(tmp_wav_file)      
+                # Check if audio is mono
                 if len(audio_array.shape) != 1:
                     return False, "Audio must be mono"
-                if samplerate != 16000:
-                    return False, f"Audio must be 16kHz (got {samplerate}Hz)"
+               # Check if sample rate is a valid number
+                if not isinstance(samplerate, (int, float)) or not (4000 <= samplerate <= 48000):
+                    return False, f"Invalid sample rate: {samplerate}. Must be a number between 4000 and 48000 Hz"
+               # Check for specific sample rate requirement
+                # if samplerate != 16000:
+                #     return False, f"Audio must be 16kHz (got {samplerate}Hz)"
             except Exception as e:
                 return False, f"Error validating audio format: {str(e)}"
             
