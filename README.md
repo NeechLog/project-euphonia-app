@@ -1,11 +1,29 @@
-cd api
-Install UV
-uv sync
-uv pip install git+https://github.com/nari-labs/dia.git
-uv pip uninstall onnx protobuf
-uv pip install onnx protobuf
-uv pip uninstall numpy
-uv pip install "numpy<2.0"
-cd ..
-source api/.venv/bin/activate
-python api/app_dia.py
+# Project Setup Guide
+
+## Prerequisites
+- Python 3.x
+- UV package manager
+
+## Installation
+
+1. **Navigate to the API directory**:
+   ```bash
+   cd api
+   ```
+
+2. **Synchronize dependencies**:
+   ```bash
+   uv sync
+   ```
+
+## Running the Application
+
+1. **Activate the virtual environment**:
+   ```bash
+   source api/.venv/bin/activate
+   ```
+
+2. **Start the application**:
+   ```bash
+   python api/app_dia.py
+   ```
