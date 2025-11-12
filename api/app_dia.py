@@ -224,7 +224,7 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
             if not is_valid:
                raise HTTPException(status_code=400, detail=f'Invalid WAV file: {error_msg}')
         
-        training_data, error =  prepare_training_data(
+        training_data, error = await prepare_training_data(
             phrase=phrase,
             sample_phrase=sample_phrase,
             sample_voice=sample_voice if sample_voice and sample_phrase else None,
@@ -250,7 +250,7 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
             except Exception as e:
                 logger.error(f'Error cleaning up temporary file: {str(e)}')
 
-def prepare_training_data(phrase, sample_phrase=None, sample_voice=None, hash_id=None):
+async def prepare_training_data(phrase, sample_phrase=None, sample_voice=None, hash_id=None):
     """
     Prepares training data from either provided samples or existing storage.
     
@@ -271,7 +271,7 @@ def prepare_training_data(phrase, sample_phrase=None, sample_voice=None, hash_id
         try:
             with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_voice:
                 # Save the uploaded voice data to the temporary file
-                contents =  sample_voice.read()
+                contents =  await sample_voice.read()
                 
                 # Write the content to the temporary file
                 tmp_voice.write(contents)
