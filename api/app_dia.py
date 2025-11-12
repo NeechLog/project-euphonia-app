@@ -245,8 +245,8 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
     finally:
         if training_data and '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
             try:
-                os.unlink(training_data['_temp_file'])
-                logger.info(f'Cleaned up temporary file: {training_data["_temp_file"]}')
+               # os.unlink(training_data['_temp_file'])
+                logger.info(f'did not Cleaned up temporary file: {training_data["_temp_file"]}')
             except Exception as e:
                 logger.error(f'Error cleaning up temporary file: {str(e)}')
 
