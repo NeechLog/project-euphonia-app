@@ -208,6 +208,7 @@ async def transcribe(wav: UploadFile = File(...)):
 
 @app.post('/gendia')
 async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sample_voice: UploadFile = File(None), hash_id: str = Form(DEFAULT_HASH_ID)):
+    training_data = None
     try:
         # Required parameter
         if not phrase:
@@ -219,7 +220,7 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
        
         if sample_voice:
             logger.info(f'Received sample voice file: {sample_voice.filename}')
-            is_valid, error_msg = is_valid_wav(sample_voice, check_format=True)
+            is_valid, error_msg = await is_valid_wav(sample_voice, check_format=True)
             if not is_valid:
                raise HTTPException(status_code=400, detail=f'Invalid WAV file: {error_msg}')
         
@@ -241,8 +242,8 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
     except Exception as e:
         logger.error(f'Error processing gendia request: {str(e)}', exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-    finally :
-        if '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
+    finally:
+        if training_data and '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
             try:
                 os.unlink(training_data['_temp_file'])
                 logger.info(f'Cleaned up temporary file: {training_data["_temp_file"]}')
