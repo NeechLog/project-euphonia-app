@@ -224,7 +224,7 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
             if not is_valid:
                raise HTTPException(status_code=400, detail=f'Invalid WAV file: {error_msg}')
         
-        training_data, error = await prepare_training_data(
+        training_data, error =  prepare_training_data(
             phrase=phrase,
             sample_phrase=sample_phrase,
             sample_voice=sample_voice if sample_voice and sample_phrase else None,
