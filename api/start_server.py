@@ -55,8 +55,10 @@ def start_server():
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
     
+    pid = os.getpid()
     print(f"Starting server on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
     print(f"Workers: {UVICORN_CONFIG.get('workers', 1)}")
+    print(f"Process ID: {pid} | PID file: {os.path.abspath(pid_file)}")
     
     try:
         config = Config(
