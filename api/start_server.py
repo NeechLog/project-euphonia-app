@@ -43,17 +43,17 @@ def start_server():
     """Start the Uvicorn server with the specified configuration."""
     pid_file = "uvicorn.pid"
     
-    # Set up signal handlers
+    # Write PID file first - if this fails, we shouldn't proceed
+    if not write_pid(pid_file):
+        print("Failed to write PID file. Exiting.", file=sys.stderr)
+        sys.exit(1)
+        
+    # Set up signal handlers after PID file is written
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
     
     print(f"Starting server on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
     print(f"Workers: {UVICORN_CONFIG.get('workers', 1)}")
-    
-    # Write PID file
-    if not write_pid(pid_file):
-        print("Failed to write PID file. Exiting.", file=sys.stderr)
-        sys.exit(1)
     
     try:
         config = Config(
