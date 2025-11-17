@@ -47,7 +47,10 @@ def start_server():
     if not write_pid(pid_file):
         print("Failed to write PID file. Exiting.", file=sys.stderr)
         sys.exit(1)
-        
+    pid_path = Path(pid_file)
+    if not pid_path.exists():
+        print("PID file does not exist. Exiting.", file=sys.stderr)
+        sys.exit(1)
     # Set up signal handlers after PID file is written
     signal.signal(signal.SIGINT, handle_exit)
     signal.signal(signal.SIGTERM, handle_exit)
