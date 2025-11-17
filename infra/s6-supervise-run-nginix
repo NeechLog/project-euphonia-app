@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv bash
+# /etc/service/nginx/run
+
+# Ensure any environment variables set up by with-contenv are sourced.
+
+# The 'exec' command ensures that s6-supervise manages the nginx process directly.
+# The '-g "daemon off;"' argument prevents Nginx from forking into the background,
+# which is essential for s6 to supervise it correctly.
+
+exec /usr/sbin/nginx -g "daemon off;"
