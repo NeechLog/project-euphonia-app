@@ -6,13 +6,11 @@ Usage: python3 start_server.py
 import os
 import signal
 import sys
-import uvicorn
-import uvicorn.config
+import uvicorn    
 from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
-from uvicorn.supervisors import ChangeReload
-from uvicorn_config import UVICORN_CONFIG
+from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
 
 def write_pid(pid_file):
     """Write the current process ID to the PID file."""
@@ -41,7 +39,7 @@ def handle_exit(sig, frame):
 
 def start_server():
     """Start the Uvicorn server with the specified configuration."""
-    pid_file = "uvicorn.pid"
+    pid_file = get_pid_file_path()
     
     # Write PID file first - if this fails, we shouldn't proceed
     if not write_pid(pid_file):

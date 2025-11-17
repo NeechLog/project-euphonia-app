@@ -85,4 +85,10 @@ UVICORN_CONFIG = {
     "log_level": "info",
 }
 
-__all__ = ["UVICORN_CONFIG", "LOG_CONFIG", "LOG_DIR"]
+def get_pid_file_path():
+    """Get the path to the PID file in the script's parent directory."""
+    script_dir = Path(__file__).parent
+    return script_dir.parent / "uvicorn.pid"
+
+
+__all__ = ["UVICORN_CONFIG", "LOG_CONFIG", "LOG_DIR", "get_pid_file_path"]

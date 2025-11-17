@@ -8,14 +8,14 @@ import signal
 import sys
 import time
 from pathlib import Path
-from uvicorn_config import UVICORN_CONFIG
+from uvicorn_config import get_pid_file_path
 
 def stop_server():
     """Stop the running Uvicorn server gracefully."""
-    pid_file = Path("uvicorn.pid")
+    pid_file = get_pid_file_path()
     
     if not pid_file.exists():
-        print("No PID file found. Is the server running?")
+        print(f"No PID file found at {pid_file.absolute()}. Is the server running?")
         return False
     
     try:
