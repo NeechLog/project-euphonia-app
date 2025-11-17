@@ -13,7 +13,8 @@ LOG_CONFIG = {
             "format": "%(asctime)s | %(name)s | %(levelname)s | %(message)s",
         },
         "access": {
-            "format": "%(asctime)s | %(levelname)s | %(client_addr)s -> %(request_line)s | %(status_code)s",
+            "()": "uvicorn.logging.AccessFormatter",
+            "fmt": '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
         },
     },
     "handlers": {
