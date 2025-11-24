@@ -1,10 +1,15 @@
 #!/usr/bin/with-contenv bash
 # /etc/service/nginx/run
+set -euo pipefail
+# Ensure log directory exists and ownership
+mkdir -p /var/log/nginx
+chown -R www-data:www-data /var/log/nginx || true
 
 # Ensure any environment variables set up by with-contenv are sourced.
+# Exec nginx as unprivileged user (binary should have cap_net_bind_service)
 
 # The 'exec' command ensures that s6-supervise manages the nginx process directly.
 # The '-g "daemon off;"' argument prevents Nginx from forking into the background,
 # which is essential for s6 to supervise it correctly.
 
-exec /usr/sbin/nginx -g "daemon off;"
+exec s6-setuidgid www-data /usr/sbin/nginx -g 'daemon off;'
