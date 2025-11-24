@@ -15,10 +15,17 @@
    sudo chmod +x /etc/services.d/nginx/run /etc/services.d/nginx/log/run
    ```
 
-3. Create and set permissions for Nginx runtime directory:
+3. Create and set permissions for Nginx directories:
    ```bash
+   # Runtime directory
    sudo mkdir -p /var/run/nginx
    sudo chown -R www-data:www-data /var/run/nginx
+   
+   # Ensure Nginx can read its configuration
+   sudo chmod -R o+r /etc/nginx
+   
+   # Set web root permissions (adjust /var/www if using a different directory)
+   sudo chmod -R o+r /home/jovyan/voice_assist/prod/web/
    ```
 
 4. Copy Nginx configuration:
