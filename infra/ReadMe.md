@@ -15,10 +15,22 @@
    sudo chmod +x /etc/services.d/nginx/run /etc/services.d/nginx/log/run
    ```
 
-3. Copy Nginx configuration:
+3. Create and set permissions for Nginx runtime directory:
+   ```bash
+   sudo mkdir -p /var/run/nginx
+   sudo chown -R www-data:www-data /var/run/nginx
+   ```
+
+4. Copy Nginx configuration:
    ```bash
    sudo cp infra/nginx-conf/nginx.conf /etc/nginx/nginx.conf
    ```
+
+5. Allow Nginx to bind to privileged ports (80/443):
+   ```bash
+   sudo setcap 'cap_net_bind_service=+ep' /usr/sbin/nginx
+   ```
+   Note: You'll need to re-run this if you update Nginx.
 
 ## Starting the Service
 
