@@ -18,10 +18,8 @@
 3. Create and set permissions for Nginx directories:
    ```bash
    # Runtime directory
-   sudo mkdir -p /var/run/nginx/client_body_temp
+   sudo mkdir -p /var/run/nginx
    sudo chown -R www-data:www-data /var/run/nginx
-   sudo chown -R www-data:www-data /var/run/nginx/client_body_temp
-   
    
    # Ensure Nginx can read its configuration
    sudo chmod -R o+r /etc/nginx
