@@ -60,12 +60,6 @@ async def issue_state(request: Request):
     # )
     # return resp
     pass
-        value=signed,
-        httponly=True,
-        secure=False,  # consider True with HTTPS
-        samesite="lax",
-        path="/",
-    )
     return resp
 
 
