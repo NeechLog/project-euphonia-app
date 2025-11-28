@@ -1,7 +1,8 @@
 import logging
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
 import tempfile
 import soundfile as sf
@@ -52,14 +53,20 @@ logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(a
 logger = logging.getLogger(__name__)
 
 app = FastAPI()
+security = HTTPBearer(auto_error=True)
 logger.debug('Starting FastAPI server')
 # Serve static files from the 'web' directory
 import os
 from pathlib import Path
+from oauth.google_stateless import router as google_auth_router
+from oauth.apple_stateless import router as apple_auth_router
+from auth_jwt import verify_jwt
 
 # Get the absolute path to the web directory
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
 app.mount("/web", StaticFiles(directory=web_dir), name="web")
+app.include_router(google_auth_router)
+app.include_router(apple_auth_router)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
 
@@ -484,6 +491,19 @@ async def is_valid_wav(file_storage, check_format=True):
             pass
         # Reset file pointer for any potential future use
         await file_storage.seek(0)
+
+
+@app.get("/protected")
+async def protected_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Simple protected endpoint that validates a bearer JWT and returns its claims."""
+    token = credentials.credentials
+    try:
+        claims = verify_jwt(token)
+    except Exception as e:
+        logger.warning(f"JWT verification failed in /protected: {e}")
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    return {"status": "ok", "claims": claims}
 
 
 if __name__ == "__main__":

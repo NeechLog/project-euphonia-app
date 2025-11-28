@@ -6,11 +6,41 @@ Usage: python3 start_server.py
 import os
 import signal
 import sys
-import uvicorn    
+import uvicorn
 from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
 from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
+
+def load_env(filepath='.env.oidc.example'):
+    """
+    Load environment variables from a .env file.
+    
+    Args:
+        filepath (str): Path to the .env file. Defaults to '.env.oidc' in the same directory.
+    """
+    try:
+        with open(filepath) as f:
+            for line in f:
+                line = line.strip()
+                # Skip empty lines and comments
+                if line and not line.startswith('#'):
+                    # Split on first '=' only
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        os.environ[key.strip()] = value.strip().strip('"\'')
+        print(f"Loaded environment variables from {filepath}")
+        return True
+    except FileNotFoundError:
+        print(f"Warning: {filepath} not found. Using system environment variables.")
+        return False
+    except Exception as e:
+        print(f"Error loading {filepath}: {e}")
+        return False
+
+# Load environment variables from .env.oidc if it exists
+env_path = Path(__file__).parent / '.env.oidc'
+load_env(env_path)
 
 def write_pid(pid_file):
     """Write the current process ID to the PID file."""
