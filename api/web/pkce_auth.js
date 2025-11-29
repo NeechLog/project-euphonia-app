@@ -4,15 +4,41 @@
 const PROVIDERS = {
     google: {
         authorizationEndpoint: "https://accounts.google.com/o/oauth2/v2/auth",
-        clientId: "YOUR_GOOGLE_CLIENT_ID", // TODO: replace
         scope: "openid email profile",
         basePath: "/auth/google",
+        platforms: {
+            web: {
+                clientId: "YOUR_GOOGLE_WEB_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/google/callback",
+            },
+            ios: {
+                clientId: "YOUR_GOOGLE_IOS_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/google/callback",
+            },
+            android: {
+                clientId: "YOUR_GOOGLE_ANDROID_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/google/callback",
+            },
+        },
     },
     apple: {
         authorizationEndpoint: "https://appleid.apple.com/auth/authorize",
-        clientId: "YOUR_APPLE_CLIENT_ID", // TODO: replace
         scope: "openid email name",
         basePath: "/auth/apple",
+        platforms: {
+            web: {
+                clientId: "YOUR_APPLE_WEB_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/apple/callback",
+            },
+            ios: {
+                clientId: "YOUR_APPLE_IOS_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/apple/callback",
+            },
+            android: {
+                clientId: "YOUR_APPLE_ANDROID_CLIENT_ID", // TODO: replace
+                redirectPath: "/auth/apple/callback",
+            },
+        },
     },
 };
 const OIDC_CODE_CHALLENGE_METHOD = "S256";
@@ -37,16 +63,27 @@ function base64UrlEncode(buffer) {
     return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-function getProviderConfig(provider) {
-    const cfg = PROVIDERS[provider];
-    if (!cfg) {
+function getProviderConfig(provider, platform) {
+    const providerCfg = PROVIDERS[provider];
+    if (!providerCfg) {
         throw new Error(`Unknown provider: ${provider}`);
     }
-    return cfg;
+    const platformCfg = providerCfg.platforms?.[platform];
+    if (!platformCfg) {
+        throw new Error(`Provider '${provider}' is not configured for platform '${platform}'`);
+    }
+    return {
+        authorizationEndpoint: providerCfg.authorizationEndpoint,
+        scope: providerCfg.scope,
+        basePath: providerCfg.basePath,
+        clientId: platformCfg.clientId,
+        redirectPath: platformCfg.redirectPath,
+    };
 }
 
-export async function startLogin(provider, state, redirectUri) {
-    const { authorizationEndpoint, clientId, scope } = getProviderConfig(provider);
+export async function startLogin(provider, platform, state) {
+    const { authorizationEndpoint, clientId, scope, redirectPath } = getProviderConfig(provider, platform);
+    const redirectUri = window.location.origin + redirectPath;
     const verifier = await generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     sessionStorage.setItem(STORAGE_KEY_VERIFIER, verifier);
