@@ -3,7 +3,17 @@
 set -euo pipefail
 # Ensure log directory exists and ownership
 mkdir -p /var/log/nginx
+mkdir -p /run/nginx
+mkdir -p /run/nginx/client_body_temp
+mkdir -p /run/nginx/proxy_temp
+mkdir -p /run/nginx/fastcgi_temp
+mkdir -p /run/nginx/uwsgi_temp
 chown -R www-data:www-data /var/log/nginx || true
+chown -R www-data:www-data /run/nginx || true
+chown -R www-data:www-data /run/nginx/client_body_temp || true
+chown -R www-data:www-data /run/nginx/proxy_temp || true
+chown -R www-data:www-data /run/nginx/fastcgi_temp || true
+chown -R www-data:www-data /run/nginx/uwsgi_temp || true
 
 # Ensure any environment variables set up by with-contenv are sourced.
 # Exec nginx as unprivileged user (binary should have cap_net_bind_service)
