@@ -14,7 +14,7 @@ LOG_CONFIG = {
         },
         "access": {
             "()": "uvicorn.logging.AccessFormatter",
-            "fmt": '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
+            "fmt": '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s - URL: %(request_headers[host]%(request_uri)s',
         },
     },
     "handlers": {
@@ -26,7 +26,7 @@ LOG_CONFIG = {
         "application_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "level": "INFO",
+            "level": "DEBUG",
             "filename": str(LOG_DIR / "application.log"),
             "maxBytes": 10 * 1024 * 1024,  # 10 MB
             "backupCount": 5,
@@ -34,7 +34,7 @@ LOG_CONFIG = {
         "uvicorn_error_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "standard",
-            "level": "INFO",
+            "level": "DEBUG",
             "filename": str(LOG_DIR / "uvicorn.error.log"),
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
@@ -42,7 +42,7 @@ LOG_CONFIG = {
         "uvicorn_access_file": {
             "class": "logging.handlers.RotatingFileHandler",
             "formatter": "access",
-            "level": "INFO",
+            "level": "DEBUG",
             "filename": str(LOG_DIR / "uvicorn.access.log"),
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
@@ -64,7 +64,7 @@ LOG_CONFIG = {
             "propagate": False,
         },
         "uvicorn.access": {
-            "handlers": ["uvicorn_access_file"],
+            "handlers": ["console", "uvicorn_access_file"],
             "level": "DEBUG",
             "propagate": False,
         },
