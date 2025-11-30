@@ -67,6 +67,8 @@ web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
 app.mount("/web", StaticFiles(directory=web_dir), name="web")
 app.include_router(google_auth_router)
 app.include_router(apple_auth_router)
+for route in app.routes:
+    logger.debug("Route is %s", route)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
 

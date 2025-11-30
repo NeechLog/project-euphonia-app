@@ -51,26 +51,26 @@ LOG_CONFIG = {
     "loggers": {
         "": {  # root logger
             "handlers": ["console", "application_file"],
-            "level": "INFO",
+            "level": "DEBUG",
         },
         "uvicorn": {
             "handlers": ["console", "uvicorn_error_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "uvicorn.error": {
             "handlers": ["console", "uvicorn_error_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "uvicorn.access": {
             "handlers": ["uvicorn_access_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
         "app_dia": {
             "handlers": ["application_file"],
-            "level": "INFO",
+            "level": "DEBUG",
             "propagate": False,
         },
     },
