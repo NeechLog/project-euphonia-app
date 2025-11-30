@@ -14,7 +14,7 @@ LOG_CONFIG = {
         },
         "access": {
             "()": "uvicorn.logging.AccessFormatter",
-            "fmt": '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s - URL: %(request_headers[host]%(request_uri)s',
+            "fmt": '%(asctime)s - %(client_addr)s - "%(request_line)s" %(status_code)s',
         },
     },
     "handlers": {
