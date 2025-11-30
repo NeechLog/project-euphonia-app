@@ -69,7 +69,7 @@ async def issue_state(request: Request):
         key=_STATE_COOKIE_NAME,
         value=signed,
         httponly=True,
-        secure=False,  # set True in production with HTTPS
+        secure=True,  
         samesite="lax",
         path="/",
     )

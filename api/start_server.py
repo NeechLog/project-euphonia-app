@@ -87,7 +87,11 @@ def start_server():
     print(f"Starting server on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
     print(f"Workers: {UVICORN_CONFIG.get('workers', 1)}")
     print(f"Process ID: {pid} | PID file: {os.path.abspath(pid_file)}")
-    
+    # import debugpy
+    # debugpy.listen(("0.0.0.0", 5678))
+    # print("⏳ Remote debugger waiting for attach on port 5678...")
+    # debugpy.wait_for_client()  # Pause until debugger attaches
+    # print("✅ Remote debugger attached, continuing...")
     try:
         config = Config(
             app=UVICORN_CONFIG['app'],
