@@ -11,6 +11,7 @@ from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
 from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
+from auth_config import init_auth_config
 
 def load_env(filepath='.env.oidc.example'):
     """
@@ -70,6 +71,12 @@ def handle_exit(sig, frame):
 def start_server():
     """Start the Uvicorn server with the specified configuration."""
     pid_file = get_pid_file_path()
+    try:
+        init_auth_config()
+        print("AuthConfig initialized successfully")
+    except Exception as e:
+        print(f"Error initializing AuthConfig: {e}", file=sys.stderr)
+        sys.exit(1)
     
     # Write PID file first - if this fails, we shouldn't proceed
     if not write_pid(pid_file):
@@ -87,11 +94,6 @@ def start_server():
     print(f"Starting server on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
     print(f"Workers: {UVICORN_CONFIG.get('workers', 1)}")
     print(f"Process ID: {pid} | PID file: {os.path.abspath(pid_file)}")
-    # import debugpy
-    # debugpy.listen(("0.0.0.0", 5678))
-    # print("⏳ Remote debugger waiting for attach on port 5678...")
-    # debugpy.wait_for_client()  # Pause until debugger attaches
-    # print("✅ Remote debugger attached, continuing...")
     try:
         config = Config(
             app=UVICORN_CONFIG['app'],

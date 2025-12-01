@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from jose import jwt, JWTError
 import requests
 
+from auth_config import get_auth_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,28 +20,39 @@ _STATE_SECRET = os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY
 _STATE_ALG = "HS256"
 _STATE_TTL_SECONDS = 600
 
-_TOKEN_ENDPOINT = os.getenv("GOOGLE_TOKEN_ENDPOINT", "https://oauth2.googleapis.com/token")
-_SUPPORTED_PLATFORMS = {"web", "ios", "android"}
-
 
 def _normalize_platform(value: str | None) -> str:
-    platform = (value or "web").lower()
-    if platform not in _SUPPORTED_PLATFORMS:
-        raise HTTPException(status_code=400, detail=f"Unsupported Google platform '{platform}'")
-    return platform
+    """Normalize platform name to lowercase, defaulting to 'web'."""
+    return (value or "web").lower()
 
 
 def _get_platform_config(platform: str) -> dict:
-    suffix = platform.upper()
-    client_id = os.getenv(f"GOOGLE_CLIENT_ID_{suffix}") or os.getenv("GOOGLE_CLIENT_ID", "")
-    client_secret = os.getenv(f"GOOGLE_CLIENT_SECRET_{suffix}") or os.getenv("GOOGLE_CLIENT_SECRET", "")
-    if not client_id:
-        raise HTTPException(status_code=500, detail=f"Google client ID not configured for platform '{platform}'")
-    return {
-        "platform": platform,
-        "client_id": client_id,
-        "client_secret": client_secret,
-    }
+    """
+    Get Google OAuth configuration for the specified platform.
+    
+    Args:
+        platform: The target platform (e.g., 'web', 'ios', 'android')
+        
+    Returns:
+        dict: Configuration containing client_id, client_secret, and token_endpoint
+        
+    Raises:
+        HTTPException: If configuration is not found or invalid
+    """
+    try:
+        cfg = get_auth_config("google", platform)
+        return {
+            "platform": platform,
+            "client_id": cfg.client_id,
+            "client_secret": cfg.client_secret,
+            "token_endpoint": cfg.token_endpoint,
+        }
+    except Exception as e:
+        logger.error(f"Failed to load Google config for platform '{platform}': {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Google authentication is not properly configured for platform '{platform}'"
+        )
 
 
 def _encode_state_cookie(state: str, platform: str) -> str:
@@ -82,8 +95,9 @@ def _exchange_code_for_tokens(
     client_config: dict,
     code_verifier: str | None = None,
 ) -> dict:
-    if not _TOKEN_ENDPOINT:
-        raise RuntimeError("GOOGLE_TOKEN_ENDPOINT must be configured")
+    token_endpoint = client_config.get("token_endpoint")
+    if not token_endpoint:
+        raise RuntimeError("Google token endpoint must be configured")
 
     data = {
         "grant_type": "authorization_code",
@@ -98,7 +112,7 @@ def _exchange_code_for_tokens(
     if code_verifier:
         data["code_verifier"] = code_verifier
 
-    resp = requests.post(_TOKEN_ENDPOINT, data=data, timeout=10)
+    resp = requests.post(token_endpoint, data=data, timeout=10)
     try:
         payload = resp.json()
     except Exception:
