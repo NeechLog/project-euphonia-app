@@ -6,12 +6,7 @@
 
 ## Installation
 
-1. **Navigate to the API directory**:
-   ```bash
-   cd api
-   ```
-
-2. **Synchronize dependencies**:
+1. **Synchronize dependencies**:
    ```bash
    uv sync
    ```
@@ -20,10 +15,21 @@
 
 1. **Activate the virtual environment**:
    ```bash
-   source api/.venv/bin/activate
+   source .venv/bin/activate
    ```
 
-2. **Start the application**:
+2. **Install the dependencies**:
    ```bash
-   python api/app_dia.py
+   uv pip install -e .
+   uv pip install -e ".[audio,ml,dev]"
+   ```
+
+3. **Set the path correctly**:
+   ```bash
+   export PYTHONPATH=$(pwd)
+   ```
+
+4. **Start the application**:
+   ```bash
+   euphonia-serve
    ```

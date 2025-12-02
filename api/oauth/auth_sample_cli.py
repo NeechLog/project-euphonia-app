@@ -19,8 +19,7 @@ from typing import Dict, Any, Optional
 
 import httpx
 
-# Import and initialize auth config
-from ..auth_config import init_auth_config, get_auth_config, AuthConfig
+from .config import init_auth_config, get_auth_config
 init_auth_config()
 
 def get_oauth_config(provider: str, platform: str) -> Dict[str, Any]:

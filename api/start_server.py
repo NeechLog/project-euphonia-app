@@ -11,7 +11,7 @@ from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
 from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
-from auth_config import init_auth_config
+from api.oauth import init_auth_config
 
 def load_env(filepath='.env.oidc.example'):
     """
