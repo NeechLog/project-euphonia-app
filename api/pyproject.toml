@@ -71,7 +71,6 @@ include = [
     "api/e2ecloudAdapter*"
 ]
 
-[project]
 packages = ["api", "api.oauth", "api.local_adapter", "api.gcloudAdapter", "api.e2ecloudAdapter"]
 
 [project.scripts]
