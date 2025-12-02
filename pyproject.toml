@@ -61,7 +61,9 @@ dependencies = [
     "debugpy>=1.6.0"
 ]
 
-packages = ["api", "api.oauth", "api.local_adapter", "api.gcloudAdapter", "api.e2ecloudAdapter"]
+[tool.setuptools.packages.find]
+where = ["api"]  # Look for packages in the api directory
+include = ["*"]  # Include all packages under api/
 
 [project.scripts]
 euphonia = "api.main:main"
