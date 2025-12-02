@@ -1,23 +1,89 @@
 [project]
 name = "euphonia-voice-assist"
 version = "0.1.0"
+description = "Voice assistance platform with advanced speech processing capabilities"
+readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"},
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
 dependencies = [
-    "cuda-python>=13.0.3",
-    "ffmpeg-python>=0.2.0",
+    # Core Dependencies
     "fastapi>=0.111.1",
-    "python-multipart>=0.0.9",
-    "google-cloud-aiplatform>=1.60.0",
-    "hydra-core>=1.3.2",
-    "nari-tts",
-    "nemo-toolkit[asr]>=2.5.1",
-    "numpy>=2.2.4",
-    "torch>=2.8.0",
-    "torchaudio>=2.8.0",
+    "uvicorn[standard]>=0.23.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=0.19.0",
+    "httpx>=0.23.0",
+    
+    # Authentication
     "authlib>=1.3.1",
     "python-jose[cryptography]>=3.3.0",
-    "debugpy>=1.6.0",
+    "passlib[bcrypt]>=1.7.4",
+    
+    # Audio Processing
+    "numpy>=1.24.0,<2.0.0",  # Pinned to be compatible with PyTorch 2.1.0
+    "torch==2.1.0",
+    "torchvision==0.16.0",
+    "torchaudio==2.1.0",
+    "soundfile>=0.12.1",
+    "librosa>=0.10.0",
+    "webrtcvad>=2.0.10",
+    "pydub>=0.25.1",
+    "nemo-toolkit[asr]>=2.5.1",
+    "nari-tts",
+    "openai-whisper>=20231117",
+    "faster-whisper>=0.9.0",
+    
+    # Google Cloud
+    "google-cloud-aiplatform>=1.60.0",
+    "google-cloud-speech>=2.21.0",
+    "google-cloud-texttospeech>=2.14.0",
+    "google-auth>=2.16.0",
+    "google-api-python-client>=2.86.0",
+    
+    # Utilities
+    "python-multipart>=0.0.9",
+    "tqdm>=4.66.1",
+    "requests>=2.31.0",
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+    "python-slugify>=8.0.1",
+    "pyyaml>=6.0.1",
+    "debugpy>=1.6.0"
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "api*",
+    "api/oauth*",
+    "api/local_adapter*",
+    "api/gcloudAdapter*",
+    "api/e2ecloudAdapter*"
+]
+
+[project.scripts]
+euphonia = "api.main:main"
+euphonia-serve = "api.start_server:main"
+euphonia-stop = "api.stop_server:main"
+euphonia-auth-cli = "api.oauth.auth_sample_cli:main"
+euphonia-gcloud-cli = "api.gcloudadapter.gcp_sample_cli:main"
+euphonia-local-cli = "api.local_adapter.local_sample_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/euphonia-voice-assist"
+Documentation = "https://github.com/yourusername/euphonia-voice-assist#readme"
+Issues = "https://github.com/yourusername/euphonia-voice-assist/issues"
+Source = "https://github.com/yourusername/euphonia-voice-assist"
 
 [[tool.uv.index]]
 name="pytorch"
@@ -35,7 +101,189 @@ torch = [{ index = "pytorch" }]
 torchaudio = [{ index = "pytorch" }]
 [tool.uv]
 override-dependencies = [
-    # This instructs uv to ignore the version requirement for the 'torch' package
-    # when it comes up as a transitive dependency (i.e., from nari-tts).
-    "torch", "protobuf", "torchaudio","numpy"
+    # This instructs uv to ignore the version requirement for these packages
+    # when they come up as transitive dependencies
+    "torch",
+    "torchaudio",
+    "protobuf<4.0.0",
+    "numpy<2.0.0"
 ]
+
+[project.optional-dependencies]
+# Development dependencies
+dev = [
+    # Testing
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.20.0",
+    "pytest-mock>=3.10.0",
+    "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.3.1",
+    "pytest-html>=4.1.1",
+    "pytest-sugar>=0.9.7",
+    "pytest-benchmark>=4.0.0",
+    "pytest-clarity>=1.0.1",
+    "pytest-randomly>=3.12.0",
+    "pytest-env>=1.1.3",
+    "pytest-dotenv>=0.5.2",
+    "pytest-timeout>=2.1.0",
+    "pytest-icdiff>=0.6",
+    "pytest-pretty>=1.2.0",
+    
+    # Code Quality
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
+    "mypy-extensions>=1.0.0",
+    "types-python-dateutil>=2.8.19",
+    "types-pyyaml>=6.0.12",
+    "types-requests>=2.31.0",
+    "types-pytz>=2023.3.0",
+    "types-tqdm>=4.66.0",
+    "types-python-slugify>=8.0.0",
+    
+    # Documentation
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.2.0",
+    "mkdocstrings[python]>=0.22.0",
+    "mkdocs-autorefs>=0.5.0",
+    "mkdocs-jupyter>=0.24.0",
+    "mkdocs-awesome-pages-plugin>=2.9.0",
+    "mkdocs-macros-plugin>=1.0.0",
+    "mkdocs-minify-plugin>=0.7.0",
+    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    "mkdocs-git-committers-plugin-2>=1.2.0",
+    "mkdocs-git-authors-plugin>=0.7.0",
+    "mkdocs-gitbook>=0.0.1,<0.2.0",  # Pinned for Python 3.10 compatibility
+    "mkdocs-git-revision-date-plugin>=0.3.2,<1.0.0",  # Pinned for Python 3.10 compatibility
+    "mkdocs-pdf-export-plugin>=0.5.0",
+    "mkdocs-redirects>=1.2.0",
+    "mkdocs-simple-hooks>=0.1.5,<0.3.0",  # Pinned for Python 3.10 compatibility
+    "mkdocs-same-dir>=0.1.0",
+    "mkdocs-rtd-dropdown>=1.0.2,<2.0.0",  # Pinned for Python 3.10 compatibility
+    "mkdocs-section-index>=0.3.0",
+    "mkdocs-simple-plugin>=1.0.0",
+    "mkdocs-versioning>=0.2.0",
+    "mkdocs-video>=1.4.0",
+    # Development tools
+    "ipython>=8.0.0",
+    "jupyter>=1.0.0",
+    "jupyterlab>=4.0.0",
+    "notebook>=7.0.0",
+    "ipykernel>=6.0.0",
+    "ipywidgets>=8.0.0",
+    "debugpy>=1.6.0",
+    "pudb>=2022.1.0",
+    "ipdb>=0.13.0",
+    "pylint>=3.0.0",
+    "flake8>=6.0.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "vulture>=2.7.0",
+    "radon>=5.1.0,<5.2.0",  # Pinned for wily compatibility
+    "mccabe>=0.7.0",
+    "pycodestyle>=2.10.0",
+    "pydocstyle>=6.3.0",
+    "pyflakes>=3.0.0",
+    "pytype>=2023.0.0",
+    "wily>=1.25.0,<2.0.0",  # Pinned for Python 3.10 compatibility
+    "xenon>=0.9.0",
+    "yapf>=0.33.0",
+    "autopep8>=2.0.0",
+    "autoflake>=2.0.0",
+    "pylama>=8.0.0",
+    "prospector[with_everything]>=1.10.0",
+    "dodgy>=0.2.1,<0.3.0",  # Pinned for Python 3.10 compatibility
+    "dlint>=0.14.0",
+    "eradicate>=2.0.0",
+    "mypy-protobuf>=3.0.0",
+    "pylint-django>=2.5.0",
+    "pylint-plugin-utils>=0.7.0",
+    "pylint-pytest>=1.1.0",
+    "pylint-runner>=0.6.0",
+    "pytest-pylint>=0.19.0",
+    "pytest-mypy>=0.10.0",
+    "pytest-flake8>=1.1.0",
+    "pytest-black>=0.3.0",
+    "pytest-isort>=3.0.0",
+    "pytest-mccabe>=0.1.0",
+    "pytest-pycodestyle>=2.3.0",
+    "pytest-pydocstyle>=2.3.0",
+    "pytest-pylint>=0.19.0",
+    "pytest-pylint>=0.19.0",
+]
+
+# Audio processing extras
+audio = [
+    "librosa>=0.10.0",
+    "soundfile>=0.12.1",
+    "webrtcvad>=2.0.10",
+    "pydub>=0.25.1",
+    "ffmpeg-python>=0.2.0",
+    "torchaudio>=2.8.0",
+]
+
+# Machine learning extras
+ml = [
+    "torch>=2.8.0",
+    "torchvision>=0.15.0",
+    "torchaudio>=2.8.0",
+    "transformers>=4.30.0",
+    "datasets>=2.12.0",
+    "evaluate>=0.4.0",
+    "accelerate>=0.20.0",
+    "optuna>=3.1.0",
+    "wandb>=0.15.0",
+    "tensorboard>=2.12.0",
+    "mlflow>=2.3.0",
+]
+
+# Google Cloud extras
+gcp = [
+    "google-cloud-aiplatform>=1.60.0",
+    "google-cloud-speech>=2.21.0",
+    "google-cloud-texttospeech>=2.14.0",
+    "google-auth>=2.16.0",
+    "google-api-python-client>=2.86.0",
+    "google-cloud-storage>=2.8.0",
+]
+
+# Local development
+dev-all = [
+    "euphonia-voice-assist[dev]",
+    "euphonia-voice-assist[audio]",
+    "euphonia-voice-assist[ml]",
+    "euphonia-voice-assist[gcp]",
+]
+
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=api --cov-report=term-missing"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+ignore = ["E501"]
