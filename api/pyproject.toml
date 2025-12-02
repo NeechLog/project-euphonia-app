@@ -61,16 +61,6 @@ dependencies = [
     "debugpy>=1.6.0"
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = [
-    "api*",
-    "api/oauth*",
-    "api/local_adapter*",
-    "api/gcloudAdapter*",
-    "api/e2ecloudAdapter*"
-]
-
 packages = ["api", "api.oauth", "api.local_adapter", "api.gcloudAdapter", "api.e2ecloudAdapter"]
 
 [project.scripts]
