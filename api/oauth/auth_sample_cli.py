@@ -5,6 +5,10 @@ Command-line utility for testing OAuth authentication flows.
 Usage:
     python -m api.oauth.cli.auth_sample_cli --help
 """
+import debugpy
+debugpy.listen(("0.0.0.0", 5678))
+debugpy.wait_for_client()
+
 from __future__ import annotations
 
 import os
@@ -16,10 +20,6 @@ from urllib.parse import urlencode, parse_qs, urlparse
 from typing import Dict, Any, Optional
 
 import httpx
-
-import debugpy
-debugpy.listen("0.0.0.0", 5678)
-debugpy.wait_for_client()
 
 # Import and initialize auth config
 from ..auth_config import init_auth_config, get_auth_config, AuthConfig
