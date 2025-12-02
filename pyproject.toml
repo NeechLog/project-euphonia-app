@@ -66,11 +66,10 @@ where = ["api"]  # Look for packages in the api directory
 include = ["*"]  # Include all packages under api/
 
 [project.scripts]
-euphonia = "api.main:main"
-euphonia-serve = "api.start_server:main"
-euphonia-stop = "api.stop_server:main"
+euphonia-serve = "api.start_server:start_server"
+euphonia-stop = "api.stop_server:stop_server"
 euphonia-auth-cli = "api.oauth.auth_sample_cli:main"
-euphonia-gcloud-cli = "api.gcloudadapter.gcp_sample_cli:main"
+euphonia-gcloud-cli = "api.gcloudAdapter.gcp_sample_cli:main"
 euphonia-local-cli = "api.local_adapter.local_sample_cli:main"
 
 [project.urls]
