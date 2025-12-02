@@ -17,6 +17,10 @@ from typing import Dict, Any, Optional
 
 import httpx
 
+import debugpy
+debugpy.listen("0.0.0.0", 5678)
+debugpy.wait_for_client()
+
 # Import and initialize auth config
 from ..auth_config import init_auth_config, get_auth_config, AuthConfig
 init_auth_config()
