@@ -14,6 +14,7 @@ import sys
 import json
 import argparse
 import webbrowser
+import asyncio
 from urllib.parse import urlencode, parse_qs, urlparse
 from typing import Dict, Any, Optional
 
@@ -117,15 +118,14 @@ async def exchange_code(provider: str, code: str, platform: str = "web") -> dict
         response.raise_for_status()
         return response.json()
 
-async def main():
-    """Main entry point for the CLI."""
-    parser = argparse.ArgumentParser(description="Test OAuth authentication flows")
-    parser.add_argument("provider", choices=["google", "apple"], help="OAuth provider")
-    parser.add_argument("--client-id", help="OAuth client ID")
-    parser.add_argument("--platform", default="web", choices=["web", "ios", "android"], 
-                      help="Platform type")
-    parser.add_argument("--code", help="Authorization code for token exchange")
-    
+def main():
+    parser = argparse.ArgumentParser(description='OAuth 2.0 Authentication CLI')
+    parser.add_argument('--provider', choices=['google', 'apple'], default='google',
+                      help='OAuth provider (default: google)')
+    parser.add_argument('--code', help='Authorization code to exchange for tokens')
+    parser.add_argument('--client-id', help='OAuth client ID')
+    parser.add_argument('--platform', choices=['web', 'ios', 'android'], default='web',
+                      help='Target platform (default: web)')
     args = parser.parse_args()
     
     if not args.code:
@@ -142,7 +142,7 @@ async def main():
     else:
         # Exchange code for tokens
         try:
-            tokens = await exchange_code(args.provider, args.code, args.platform)
+            tokens = asyncio.run(exchange_code(args.provider, args.code, args.platform))
             print("\nAuthentication successful!")
             print("\nTokens received:")
             print(json.dumps(tokens, indent=2))
@@ -151,5 +151,4 @@ async def main():
             sys.exit(1)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
