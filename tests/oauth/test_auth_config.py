@@ -4,7 +4,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from ..conftest import TEST_CONFIG_DIR
+# Define test config directory path
+TEST_CONFIG_DIR = Path(__file__).parent.parent / "test_configs"
 from api.oauth.config import AuthConfig, AuthConfigManager
 from api.oauth.config import init_auth_config, get_auth_config
 
