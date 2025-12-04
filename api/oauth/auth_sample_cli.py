@@ -15,13 +15,13 @@ import json
 import argparse
 import webbrowser
 import asyncio
+from pathlib import Path
 from urllib.parse import urlencode, parse_qs, urlparse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 import httpx
 
 from .config import init_auth_config, get_auth_config
-init_auth_config()
 
 def get_oauth_config(provider: str, platform: str) -> Dict[str, Any]:
     """
@@ -126,7 +126,13 @@ def main():
     parser.add_argument('--client-id', help='OAuth client ID')
     parser.add_argument('--platform', choices=['web', 'ios', 'android'], default='web',
                       help='Target platform (default: web)')
+    parser.add_argument('--config-dir', type=str, 
+                      help='Optional base directory containing auth config files')
     args = parser.parse_args()
+    
+    # Initialize auth config with optional base directory
+    config_dir = Path(args.config_dir) if args.config_dir else None
+    init_auth_config(base_dir=config_dir)
     
     if not args.code:
         # Generate and open auth URL

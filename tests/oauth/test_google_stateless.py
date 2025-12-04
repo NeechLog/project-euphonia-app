@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 from fastapi import HTTPException
 
 from api.oauth.google_stateless import router, _normalize_platform, _get_platform_config
-from api.oauth import get_auth_config
+from api.oauth.config import get_auth_config
 
 @pytest.fixture
 def mock_google_config():

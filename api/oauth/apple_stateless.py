@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, HTMLResponse
 from jose import jwt, JWTError
 import requests
 
-from auth_config import get_auth_config
+from api.oauth.config import get_auth_config
 
 
 logger = logging.getLogger(__name__)

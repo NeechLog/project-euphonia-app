@@ -186,11 +186,16 @@ class AuthConfigManager:
 # Global instance
 _auth_config: Optional[AuthConfigManager] = None
 
-def init_auth_config() -> AuthConfigManager:
-    """Initialize and return the global AuthConfigManager instance."""
+def init_auth_config(base_dir: Optional[Path] = None) -> AuthConfigManager:
+    """Initialize and return the global AuthConfigManager instance.
+    
+    Args:
+        base_dir: Optional base directory to look for config files. If not provided,
+                 will use AUTH_CONFIG_DIR environment variable or default to project_root/conf.d
+    """
     global _auth_config
     if _auth_config is None:
-        _auth_config = AuthConfigManager()
+        _auth_config = AuthConfigManager(base_dir=base_dir)
         logging.info("AuthConfig initialized successfully")
     return _auth_config
 

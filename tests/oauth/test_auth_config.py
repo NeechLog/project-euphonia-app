@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 
 from ..conftest import TEST_CONFIG_DIR
 from api.oauth.config import AuthConfig, AuthConfigManager
-from api.oauth import init_auth_config, get_auth_config
+from api.oauth.config import init_auth_config, get_auth_config
 
 # Sample configuration data for testing
 SAMPLE_GOOGLE_CONFIG = """
