@@ -68,6 +68,51 @@ def handle_exit(sig, frame):
     cleanup_pid("uvicorn.pid")
     sys.exit(0)
 
+def check_existing_server(pid_file: str) -> tuple[bool, str | None]:
+    """
+    Check if a server is already running by checking the PID file.
+
+    Args:
+        pid_file: Path to the PID file to check
+
+    Returns:
+        tuple: (is_running: bool, pid: str | None)
+            - is_running: True if a server appears to be running
+            - pid: The PID if a server is running, None otherwise
+    """
+    try:
+        if not os.path.exists(pid_file):
+            return False, None
+
+        with open(pid_file, 'r') as f:
+            pid = f.read().strip()
+
+        if not pid:
+            return False, None
+
+        # Check if process is still running
+        try:
+            # Try Linux /proc method first
+            if os.path.exists(f'/proc/{pid}'):
+                return True, pid
+        except (ValueError, PermissionError):
+            pass
+
+        # Fallback method using psutil if available
+        try:
+            import psutil
+            if psutil.pid_exists(int(pid)):
+                return True, pid
+        except (ImportError, ValueError):
+            pass
+
+        # If we get here, the PID file exists but process isn't running
+        return False, pid
+
+    except (IOError, OSError) as e:
+        print(f"⚠️  Warning: Could not check PID file {pid_file}: {e}", file=sys.stderr)
+        return False, None
+
 def start_server(background=True):
     """Start the Uvicorn server with the specified configuration.
     
@@ -75,6 +120,15 @@ def start_server(background=True):
         background (bool): If True, run the server in the background. Defaults to True.
     """
     pid_file = get_pid_file_path()
+     # Check for existing server
+    is_running, pid = check_existing_server(pid_file)
+    if is_running:
+        print(f"❌ Server is already running with PID {pid}")
+        print(f"   If this is incorrect, remove the PID file: {pid_file}")
+        sys.exit(1)
+    elif pid:  # Stale PID file
+        print(f"ℹ️  Found stale PID file for process {pid}, removing...")
+        cleanup_pid(pid_file)
     try:
         # Get config directory from environment or use None for default
         config_dir = os.environ.get('AUTH_CONFIG_DIR')
@@ -138,9 +192,11 @@ def start_server(background=True):
             print(f"📝 Logs: {log_file.absolute()}")
             print("\nTo stop the server, run:")
             print(f"  kill {process.pid}  # or use the stop_server.py script")
-            process.add_signal_handler(signal.SIGINT, handle_exit)
-            process.add_signal_handler(signal.SIGTERM, handle_exit)
-            # Note: We don't register an atexit handler here because:
+            
+            # Note: We don't register signal handlers for the subprocess because:
+            # 1. The subprocess (uvicorn) handles its own signals
+            # 2. The PID file is managed by the stop_server.py script
+            # 3. The subprocess will be detached from the terminal due to start_new_session=True
             # 1. The server is running in the background
             # 2. We want the PID file to persist after this process exits
             # 3. The stop_server.py script will handle cleanup when stopping the server
