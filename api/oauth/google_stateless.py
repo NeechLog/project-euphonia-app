@@ -26,7 +26,7 @@ def _normalize_platform(value: str | None) -> str:
     return (value or "web").lower()
 
 
-def _get_platform_config(platform: str) -> dict:
+def get_platform_config(platform: str) -> dict:
     """
     Get Google OAuth configuration for the specified platform.
     
@@ -34,7 +34,7 @@ def _get_platform_config(platform: str) -> dict:
         platform: The target platform (e.g., 'web', 'ios', 'android')
         
     Returns:
-        dict: Configuration containing client_id, client_secret, and token_endpoint
+        dict: Configuration containing Google OAuth parameters
         
     Raises:
         HTTPException: If configuration is not found or invalid
@@ -44,8 +44,10 @@ def _get_platform_config(platform: str) -> dict:
         return {
             "platform": platform,
             "client_id": cfg.client_id,
-            "client_secret": cfg.client_secret,
+            "authorization_endpoint": cfg.authorization_endpoint,
             "token_endpoint": cfg.token_endpoint,
+            "scope": cfg.scope,
+            "redirect_uri": cfg.redirect_uri,
         }
     except Exception as e:
         logger.error(f"Failed to load Google config for platform '{platform}': {e}")
@@ -53,6 +55,21 @@ def _get_platform_config(platform: str) -> dict:
             status_code=500,
             detail=f"Google authentication is not properly configured for platform '{platform}'"
         )
+
+
+@router.get("/config")
+async def get_client_config(platform: str):
+    """
+    Get Google OAuth configuration for the specified platform.
+    
+    Args:
+        platform: The target platform (e.g., 'web', 'ios', 'android')
+        
+    Returns:
+        JSON: Configuration containing Google OAuth parameters
+    """
+    platform = _normalize_platform(platform)
+    return get_platform_config(platform)
 
 
 def _encode_state_cookie(state: str, platform: str) -> str:
@@ -73,7 +90,7 @@ def _decode_state_cookie(token: str) -> dict:
 @router.get("/state")
 async def issue_state(request: Request):
     platform = _normalize_platform(request.query_params.get("platform"))
-    _get_platform_config(platform)  # validate config exists
+    get_platform_config(platform)  # validate config exists
 
     state = secrets.token_urlsafe(32)
     signed = _encode_state_cookie(state, platform)

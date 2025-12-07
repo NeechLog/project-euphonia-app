@@ -13,6 +13,7 @@ class AuthConfigData(TypedDict):
     client_id: str
     client_secret: str
     token_endpoint: str
+    scope: str
     # Additional provider-specific fields
     team_id: Optional[str]
     key_id: Optional[str]
@@ -28,6 +29,7 @@ class AuthConfig:
     client_id: str
     client_secret: str
     token_endpoint: str
+    scope: str = "openid email profile"  # Default scope for most OAuth providers
     team_id: Optional[str] = None
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
@@ -122,6 +124,7 @@ class AuthConfigManager:
             client_id=env_vars.get('CLIENT_ID', ''),
             client_secret=env_vars.get('CLIENT_SECRET', ''),
             token_endpoint=token_endpoint,
+            scope=env_vars.get('SCOPE', 'openid email profile'),
             team_id=env_vars.get('TEAM_ID'),
             key_id=env_vars.get('KEY_ID'),
             auth_key_path=env_vars.get('AUTH_KEY_PATH')

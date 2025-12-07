@@ -63,7 +63,51 @@ function base64UrlEncode(buffer) {
     return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+async function getConfig(provider, platform) {
+    const basePath = `/auth/${provider}`;
+    try {
+        const response = await fetch(`${basePath}/config?platform=${platform}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${provider} config: ${response.statusText}`);
+        }
+        const config = await response.json();
+        return {
+            authorizationEndpoint: config.authorization_endpoint,
+            tokenEndpoint: config.token_endpoint,
+            clientId: config.client_id,
+            redirectUri: config.redirect_uri,
+            scope: provider === config.scope,
+            basePath: basePath,
+            redirectPath: `${basePath}/callback`
+        };
+    } catch (error) {
+        console.error(`Error fetching ${provider} config:`, error);
+        // Fallback to local config if server is not available
+        const providerCfg = PROVIDERS[provider];
+        if (!providerCfg) {
+            throw new Error(`Unknown provider: ${provider}`);
+        }
+        const platformCfg = providerCfg.platforms?.[platform];
+        if (!platformCfg) {
+            throw new Error(`Provider '${provider}' is not configured for platform '${platform}'`);
+        }
+        return {
+            authorizationEndpoint: providerCfg.authorizationEndpoint,
+            tokenEndpoint: provider === 'google' 
+                ? 'https://oauth2.googleapis.com/token' 
+                : 'https://appleid.apple.com/auth/token',
+            clientId: platformCfg.clientId,
+            redirectUri: window.location.origin + platformCfg.redirectPath,
+            scope: providerCfg.scope,
+            basePath: providerCfg.basePath,
+            redirectPath: platformCfg.redirectPath
+        };
+    }
+}
+
+// Kept for backward compatibility
 function getProviderConfig(provider, platform) {
+    console.warn('getProviderConfig is deprecated. Use getConfig instead.');
     const providerCfg = PROVIDERS[provider];
     if (!providerCfg) {
         throw new Error(`Unknown provider: ${provider}`);
@@ -82,15 +126,15 @@ function getProviderConfig(provider, platform) {
 }
 
 export async function startLogin(provider, platform, state) {
-    const { authorizationEndpoint, clientId, scope, redirectPath } = getProviderConfig(provider, platform);
-    const redirectUri = window.location.origin + redirectPath;
+    const config = await getConfig(provider, platform);
     const verifier = await generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     sessionStorage.setItem(STORAGE_KEY_VERIFIER, verifier);
+    sessionStorage.setItem('oauth_config', JSON.stringify(config));
 
     const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
+        client_id: config.clientId,
+        redirect_uri: config.redirectUri || (window.location.origin + config.redirectPath),
         response_type: "code",
         scope,
         state,

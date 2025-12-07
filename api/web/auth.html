@@ -119,7 +119,7 @@
             try {
                 const state = await getStateFromServer(provider);
                 const redirectUri = window.location.origin + `/auth/${provider}/callback`;
-                await startLogin(provider, state, redirectUri);
+                await startLogin(provider, "web",state);
             } catch (err) {
                 console.error(err);
                 result.classList.remove('hidden');

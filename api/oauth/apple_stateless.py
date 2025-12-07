@@ -27,7 +27,7 @@ def _normalize_platform(value: str | None) -> str:
     return (value or "web").lower()
 
 
-def _get_platform_client_config(platform: str) -> dict:
+def get_platform_client_config(platform: str) -> dict:
     """
     Get Apple OAuth configuration for the specified platform.
     
@@ -41,13 +41,34 @@ def _get_platform_client_config(platform: str) -> dict:
         HTTPException: If configuration is not found or invalid
     """
     try:
-        return get_auth_config("apple", platform)
+        cfg = get_auth_config("apple", platform)
+        return {
+            "platform": platform,
+            "client_id": cfg.client_id,
+            "authorization_endpoint": cfg.authorization_endpoint,
+            "token_endpoint": cfg.token_endpoint,
+        }
     except Exception as e:
         logger.error(f"Failed to load Apple config for platform '{platform}': {e}")
         raise HTTPException(
             status_code=500,
             detail=f"Apple authentication is not properly configured for platform '{platform}'"
         )
+
+
+@router.get("/config")
+async def get_client_config(platform: str):
+    """
+    Get Apple OAuth configuration for the specified platform.
+    
+    Args:
+        platform: The target platform (e.g., 'web', 'ios', 'android')
+        
+    Returns:
+        JSON: Configuration containing Apple OAuth parameters
+    """
+    platform = _normalize_platform(platform)
+    return get_platform_client_config(platform)
 
 
 def _encode_state_cookie(state: str, platform: str) -> str:
