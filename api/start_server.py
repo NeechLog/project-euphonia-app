@@ -4,9 +4,13 @@ Start script for the Uvicorn server.
 Usage: python3 start_server.py
 """
 import os
-import signal
 import sys
+import signal
+import atexit
+import logging
 import uvicorn
+import daemon
+import daemon.pidfile
 from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
@@ -113,6 +117,49 @@ def check_existing_server(pid_file: str) -> tuple[bool, str | None]:
         print(f"⚠️  Warning: Could not check PID file {pid_file}: {e}", file=sys.stderr)
         return False, None
 
+def run_uvicorn():
+    """Run the Uvicorn server with the specified configuration."""
+    try:
+        # Initialize auth config
+        config_dir = os.environ.get('AUTH_CONFIG_DIR')
+        if config_dir:
+            print(f"Using auth config from: {config_dir}")
+            init_auth_config(base_dir=Path(config_dir))
+        else:
+            init_auth_config()
+        print("AuthConfig initialized successfully")
+        
+        # Set up logging
+        log_dir = Path('logs')
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / 'uvicorn.log'
+        
+        # Configure Uvicorn
+        config = Config(
+            app=UVICORN_CONFIG['app'],
+            host=UVICORN_CONFIG['host'],
+            port=UVICORN_CONFIG['port'],
+            workers=UVICORN_CONFIG.get('workers', 1),
+            log_config=UVICORN_CONFIG.get('log_config'),
+            log_level=UVICORN_CONFIG.get('log_level', 'info'),
+            reload=UVICORN_CONFIG.get('reload', False)
+        )
+        
+        # Set up logging to file
+        logging.basicConfig(
+            filename=log_file,
+            level=getattr(logging, UVICORN_CONFIG.get('log_level', 'info').upper()),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        
+        # Create and run the server
+        server = Server(config=config)
+        server.run()
+        
+    except Exception as e:
+        logging.error(f"Error in Uvicorn server: {e}", exc_info=True)
+        raise
+
 def start_server(background=True):
     """Start the Uvicorn server with the specified configuration.
     
@@ -120,7 +167,8 @@ def start_server(background=True):
         background (bool): If True, run the server in the background. Defaults to True.
     """
     pid_file = get_pid_file_path()
-     # Check for existing server
+    
+    # Check for existing server
     is_running, pid = check_existing_server(pid_file)
     if is_running:
         print(f"❌ Server is already running with PID {pid}")
@@ -129,111 +177,78 @@ def start_server(background=True):
     elif pid:  # Stale PID file
         print(f"ℹ️  Found stale PID file for process {pid}, removing...")
         cleanup_pid(pid_file)
-    try:
-        # Get config directory from environment or use None for default
-        config_dir = os.environ.get('AUTH_CONFIG_DIR')
-        if config_dir:
-            print(f"Using auth config from: {config_dir}")
-            init_auth_config(base_dir=Path(config_dir))
-        else:
-            init_auth_config()
-        print("AuthConfig initialized successfully")
-    except Exception as e:
-        print(f"Error initializing AuthConfig: {e}", file=sys.stderr)
-        sys.exit(1)
-    
-    # Set up signal handlers
-    # signal.signal(signal.SIGINT, handle_exit)
-    # signal.signal(signal.SIGTERM, handle_exit)
     
     if background:
-        import subprocess
-        import atexit
+        print("🚀 Starting server in background...")
         
-        # Prepare the command to run uvicorn
-        cmd = [
-            'uvicorn',
-            f'{UVICORN_CONFIG["app"]}:app',
-            f'--host={UVICORN_CONFIG["host"]}',
-            f'--port={UVICORN_CONFIG["port"]}',
-            f'--workers={UVICORN_CONFIG.get("workers", 1)}',
-            f'--log-level={UVICORN_CONFIG.get("log_level", "info")}'
-        ]
+        # Set up working directory
+        working_dir = str(Path(__file__).parent.absolute())
         
-        if UVICORN_CONFIG.get('reload', False):
-            cmd.append('--reload')
+        # Set up log files
+        log_dir = Path('logs')
+        log_dir.mkdir(exist_ok=True)
+        stdout_log = str(log_dir / 'uvicorn_stdout.log')
+        stderr_log = str(log_dir / 'uvicorn_stderr.log')
         
-        # Start the process in the background
-        try:
-            # Create log directory if it doesn't exist
-            log_dir = Path('logs')
-            log_dir.mkdir(exist_ok=True)
-            log_file = log_dir / 'uvicorn.log'
-            
-            # Start process with no terminal attachment and redirect output
-            with open(log_file, 'a') as log_handle:
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=log_handle,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                    start_new_session=True,
-                    close_fds=True
-                )
-            
-            # Write the child process ID to the PID file
-            with open(pid_file, 'w') as f:
-                f.write(str(process.pid))
-            
-            print(f"✅ Server started in background with PID: {process.pid}")
-            print(f"🌐 Access URL: http://{UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
-            print(f"👥 Workers: {UVICORN_CONFIG.get('workers', 1)}")
-            print(f"📄 PID file: {os.path.abspath(pid_file)}")
-            print(f"📝 Logs: {log_file.absolute()}")
-            print("\nTo stop the server, run:")
-            print(f"  kill {process.pid}  # or use the stop_server.py script")
-            
-            # Note: We don't register signal handlers for the subprocess because:
-            # 1. The subprocess (uvicorn) handles its own signals
-            # 2. The PID file is managed by the stop_server.py script
-            # 3. The subprocess will be detached from the terminal due to start_new_session=True
-            # 1. The server is running in the background
-            # 2. We want the PID file to persist after this process exits
-            # 3. The stop_server.py script will handle cleanup when stopping the server
-            return
-                
-        except Exception as e:
-            print(f"❌ Error starting server: {e}", file=sys.stderr)
-            cleanup_pid(pid_file)
-            sys.exit(1)
-            
+        # Open file handles for logging
+        stdout_fd = open(stdout_log, 'a+')
+        stderr_fd = open(stderr_log, 'a+')
+        
+        # Set up PID file handler
+        pidfile = daemon.pidfile.PIDLockFile(pid_file)
+        
+        # Set up context
+        context = daemon.DaemonContext(
+            working_directory=working_dir,
+            umask=0o002,
+            pidfile=pidfile,
+            stdout=stdout_fd,
+            stderr=stderr_fd,
+            detach_process=True,
+            prevent_core=True,
+            signal_map={
+                signal.SIGTERM: handle_exit,
+                signal.SIGINT: handle_exit,
+                signal.SIGTSTP: handle_exit,
+            },
+            files_preserve=[
+                stdout_fd,
+                stderr_fd,
+            ]
+        )
+        
+        # Start the daemon
+        with context:
+            # The PID file is automatically managed by PIDLockFile
+            # Run the server
+            run_uvicorn()
+        
+        print(f"✅ Server started in background with PID: {os.getpid()}")
+        print(f"🌐 Access URL: http://{UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
+        print(f"👥 Workers: {UVICORN_CONFIG.get('workers', 1)}")
+        print(f"📄 PID file: {os.path.abspath(pid_file)}")
+        print(f"📝 Logs: {os.path.abspath(log_dir)}/uvicorn_*.log")
+        print("\nTo stop the server, run:")
+        print(f"  kill $(cat {pid_file})  # or use the stop_server.py script")
+    
     else:
-        # Original blocking implementation
-        if not write_pid(pid_file):
-            print("Failed to write PID file. Exiting.", file=sys.stderr)
-            sys.exit(1)
-            
-        pid = os.getpid()
-        print(f"Starting server in foreground on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
-        print(f"Workers: {UVICORN_CONFIG.get('workers', 1)}")
-        print(f"Process ID: {pid} | PID file: {os.path.abspath(pid_file)}")
+        # Run in foreground
+        print(f"🚀 Starting server in foreground on {UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
+        print(f"👥 Workers: {UVICORN_CONFIG.get('workers', 1)}")
+        print(f"Process ID: {os.getpid()} | PID file: {os.path.abspath(pid_file)}")
         
         try:
-            config = Config(
-                app=UVICORN_CONFIG['app'],
-                host=UVICORN_CONFIG['host'],
-                port=UVICORN_CONFIG['port'],
-                workers=UVICORN_CONFIG.get('workers', 1),
-                log_config=UVICORN_CONFIG.get('log_config'),
-                log_level=UVICORN_CONFIG.get('log_level', 'info'),
-                reload=UVICORN_CONFIG.get('reload', False)
-            )
+            if not write_pid(pid_file):
+                print("Failed to write PID file. Exiting.", file=sys.stderr)
+                sys.exit(1)
+                
+            # Set up signal handlers
             signal.signal(signal.SIGINT, handle_exit)
             signal.signal(signal.SIGTERM, handle_exit)
             atexit.register(cleanup_pid, pid_file)
-            server = Server(config=config)
-            server.run()
             
+            # Run the server
+            run_uvicorn()
             
         except Exception as e:
             print(f"Error starting server: {e}", file=sys.stderr)
