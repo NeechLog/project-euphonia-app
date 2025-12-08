@@ -124,10 +124,10 @@ def run_uvicorn():
         config_dir = os.environ.get('AUTH_CONFIG_DIR')
         if config_dir:
             print(f"Using auth config from: {config_dir}")
-            init_auth_config(base_dir=Path(config_dir))
+            auth_config = init_auth_config(base_dir=Path(config_dir))
         else:
-            init_auth_config()
-        print("AuthConfig initialized successfully")
+            auth_config = init_auth_config()
+        print(f"AuthConfig initialized successfully: {auth_config}")
         
         # Set up logging
         log_dir = Path('logs')

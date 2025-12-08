@@ -121,12 +121,14 @@ class AuthConfigManager:
         config = AuthConfig(
             provider=provider,
             platform=platform,
-            client_id=env_vars.get('CLIENT_ID', ''),
-            client_secret=env_vars.get('CLIENT_SECRET', ''),
+            client_id=env_vars.get('client_id', ''),
+            client_secret=env_vars.get('client_secret', ''),
             token_endpoint=token_endpoint,
             scope=env_vars.get('SCOPE', 'openid email profile'),
             team_id=env_vars.get('TEAM_ID'),
             key_id=env_vars.get('KEY_ID'),
+            authorization_endpoint=env_vars.get('auth_uri'),
+            redirect_uri=env_vars.get('redirect_uri'),
             auth_key_path=env_vars.get('AUTH_KEY_PATH')
         )
         
@@ -139,8 +141,8 @@ class AuthConfigManager:
     
     def _get_token_endpoint(self, provider: str, env_vars: Dict[str, str]) -> str:
         """Get the token endpoint with appropriate defaults."""
-        if 'TOKEN_ENDPOINT' in env_vars:
-            return env_vars['TOKEN_ENDPOINT']
+        if 'token_uri' in env_vars:
+            return env_vars['token_uri']
             
         # Default token endpoints for common providers
         defaults = {
