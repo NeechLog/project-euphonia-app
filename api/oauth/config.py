@@ -34,6 +34,7 @@ class AuthConfig:
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
     authorization_endpoint: Optional[str] = None
+    redirect_uri: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the config to a dictionary."""
