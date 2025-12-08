@@ -33,6 +33,7 @@ class AuthConfig:
     team_id: Optional[str] = None
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
+    authorization_endpoint: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the config to a dictionary."""
@@ -116,7 +117,7 @@ class AuthConfigManager:
             
         # Get the token endpoint with appropriate defaults
         token_endpoint = self._get_token_endpoint(provider, env_vars)
-        
+        ## TODO: look at https://github.com/NeechLog/project-euphonia-app/issues/19
         # Create the config object
         config = AuthConfig(
             provider=provider,
