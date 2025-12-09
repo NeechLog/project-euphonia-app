@@ -16,7 +16,7 @@ export class AuthManager {
       // Generate state and get auth URL
       const state = await this.generateState(provider, platform);
       const { url, verifier } = await oauthProvider.startLogin(state);
-      
+      console.log("URL is " + url + "and why do we need this verifier" + verifier);
       // Store verifier and config securely
       sessionStorage.setItem(STORAGE_KEYS.VERIFIER, verifier);
       sessionStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
