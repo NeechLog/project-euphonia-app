@@ -158,12 +158,11 @@
 
         const loginGoogle = document.getElementById('loginGoogle');
         const loginApple = document.getElementById('loginApple');
+        const result = document.getElementById('result');
         const loginMicrosoft = document.getElementById('loginMicrosoft');
         const messageBox = document.getElementById('messageBox');
-        const result = document.getElementById('result');
 
-        // Initialize AuthManager
-        const authManager = new AuthManager();
+        // No need to instantiate AuthManager as all methods are static
 
         // Show error message
         function showError(message) {
@@ -196,7 +195,7 @@
             const button = document.getElementById(`login${provider.charAt(0).toUpperCase() + provider.slice(1)}`);
             try {
                 setLoading(button, true);
-                await authManager.startLogin(provider, 'web');
+                await AuthManager.startLogin(provider, 'web');
             } catch (err) {
                 console.error('Login error:', err);
                 showError(err.message || 'Failed to sign in. Please try again.');
