@@ -2,8 +2,8 @@ import { OAuthProvider } from './base.js';
 
 export class GoogleOAuthProvider extends OAuthProvider {
   async startLogin(state) {
-    //const verifier = await this.generateCodeVerifier();
-    //const challenge = await this.generateCodeChallenge(verifier);
+    const verifier = await this.generateCodeVerifier();
+    const challenge = await this.generateCodeChallenge(verifier);
     
     const params = new URLSearchParams({
       client_id: this.config.client_id,
