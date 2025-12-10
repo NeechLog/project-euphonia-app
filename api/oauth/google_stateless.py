@@ -152,21 +152,19 @@ def _exchange_code_for_tokens(
 
 
 @router.get("/callback")
-async def _exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any]) -> None:
-    """Exchange authorization code for tokens."""
-    _exchange_code_for_tokens(
-        code=code,
-        redirect_uri=redirect_uri,
-        client_config=config
-    )
-
-
-@router.get("/callback")
 async def callback(request: Request):
     """Handle OAuth callback from Google."""
+    async def exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Exchange authorization code for tokens."""
+        return _exchange_code_for_tokens(
+            code=code,
+            redirect_uri=redirect_uri,
+            client_config=config
+        )
+    
     return await _OAUTH_PROVIDER.handle_callback(
         request=request,
-        exchange_callback=_exchange_callback,
+        exchange_callback=exchange_callback,
         success_html_title="Google Login Complete",
         success_html_heading="Google authentication completed",
         config_loader=_get_internal_config
