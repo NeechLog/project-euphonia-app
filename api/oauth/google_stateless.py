@@ -9,16 +9,19 @@ from jose import jwt, JWTError
 import requests
 
 from api.oauth.config import get_auth_config
-
+from api.oauth.base_oauth import OAuthProvider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth/google", tags=["auth-google"])
 
-_STATE_COOKIE_NAME = "g_oidc_state"
-_STATE_SECRET = os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY", "change-me-state-secret"))
-_STATE_ALG = "HS256"
-_STATE_TTL_SECONDS = 600
+# Initialize the OAuth provider
+_OAUTH_PROVIDER = OAuthProvider(
+    provider_name="Google",
+    state_cookie_name="g_oidc_state",
+    state_secret=os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY", "change-me-state-secret")),
+    state_ttl_seconds=600
+)
 
 
 def _normalize_platform(value: str | None) -> str:
@@ -26,12 +29,13 @@ def _normalize_platform(value: str | None) -> str:
     return (value or "web").lower()
 
 
-def get_platform_config(platform: str) -> dict:
+def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
     """
     Get Google OAuth configuration for the specified platform.
     
     Args:
         platform: The target platform (e.g., 'web', 'ios', 'android')
+        include_secrets: Whether to include sensitive information like client_secret
         
     Returns:
         dict: Configuration containing Google OAuth parameters
@@ -41,7 +45,7 @@ def get_platform_config(platform: str) -> dict:
     """
     try:
         cfg = get_auth_config("google", platform)
-        return {
+        config = {
             "platform": platform,
             "client_id": cfg.client_id,
             "authorization_endpoint": cfg.authorization_endpoint,
@@ -49,6 +53,12 @@ def get_platform_config(platform: str) -> dict:
             "scope": cfg.scope,
             "redirect_uri": cfg.redirect_uri,
         }
+        
+        # Only include client_secret for internal server calls
+        if include_secrets and hasattr(cfg, 'client_secret'):
+            config["client_secret"] = cfg.client_secret
+            
+        return config
     except Exception as e:
         logger.error(f"Failed to load Google config for platform '{platform}': {e}")
         raise HTTPException(
@@ -57,49 +67,47 @@ def get_platform_config(platform: str) -> dict:
         )
 
 
+def _get_internal_config(platform: str) -> dict:
+    """
+    Get Google OAuth configuration including sensitive information for internal use only.
+    This should only be used by server-side components that need the client_secret.
+    """
+    return get_platform_config(platform, include_secrets=True)
+
+
 @router.get("/config")
 async def get_client_config(platform: str):
     """
     Get Google OAuth configuration for the specified platform.
+    This endpoint is safe to expose to clients as it doesn't return sensitive information.
     
     Args:
         platform: The target platform (e.g., 'web', 'ios', 'android')
         
     Returns:
-        JSON: Configuration containing Google OAuth parameters
+        JSON: Configuration containing Google OAuth parameters (without sensitive data)
     """
     platform = _normalize_platform(platform)
-    return get_platform_config(platform)
-
-
-def _encode_state_cookie(state: str, platform: str) -> str:
-    now = int(time.time())
-    payload = {
-        "state": state,
-        "platform": platform,
-        "iat": now,
-        "exp": now + _STATE_TTL_SECONDS,
-    }
-    return jwt.encode(payload, _STATE_SECRET, algorithm=_STATE_ALG)
-
-
-def _decode_state_cookie(token: str) -> dict:
-    return jwt.decode(token, _STATE_SECRET, algorithms=[_STATE_ALG])
+    return get_platform_config(platform, include_secrets=False)
 
 
 @router.get("/state")
 async def issue_state(request: Request):
-    platform = _normalize_platform(request.query_params.get("platform"))
-    get_platform_config(platform)  # validate config exists
+    platform = request.query_params.get("platform")
+    get_platform_config(platform)  # Validate platform config exists
 
-    state = secrets.token_urlsafe(32)
-    signed = _encode_state_cookie(state, platform)
-    resp = JSONResponse({"state": state, "platform": platform})
+    state_data = _OAUTH_PROVIDER.create_state_response(request, platform)
+    
+    resp = JSONResponse({
+        "state": state_data["state"],
+        "platform": state_data["platform"]
+    })
+    
     resp.set_cookie(
-        key=_STATE_COOKIE_NAME,
-        value=signed,
+        key=_OAUTH_PROVIDER.state_cookie_name,
+        value=state_data["signed_state"],
         httponly=True,
-        secure=True,  
+        secure=True,
         samesite="lax",
         path="/",
     )
@@ -144,50 +152,25 @@ def _exchange_code_for_tokens(
 
 
 @router.get("/callback")
+async def _exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any]) -> None:
+    """Exchange authorization code for tokens."""
+    _exchange_code_for_tokens(
+        code=code,
+        redirect_uri=redirect_uri,
+        client_config=config
+    )
+
+
+@router.get("/callback")
 async def callback(request: Request):
-    params = dict(request.query_params)
-    code = params.get("code")
-    state = params.get("state")
-
-    if not state:
-        raise HTTPException(status_code=400, detail="Missing state in callback")
-
-    cookie = request.cookies.get(_STATE_COOKIE_NAME)
-    if not cookie:
-        raise HTTPException(status_code=400, detail="Missing state cookie")
-
-    try:
-        state_payload = _decode_state_cookie(cookie)
-    except JWTError as exc:
-        logger.warning("Invalid state cookie: %s", exc)
-        raise HTTPException(status_code=400, detail="Invalid state cookie")
-
-    expected_state = state_payload.get("state")
-    platform = state_payload.get("platform", "web")
-
-    if not expected_state or expected_state != state:
-        logger.warning("State mismatch: expected %s, got %s", expected_state, state)
-        raise HTTPException(status_code=400, detail="State mismatch")
-
-    config = _get_platform_config(platform)
-    logger.info("Google OIDC callback received. code=%s, state=%s", code, state)
-
-    if code:
-        try:
-            redirect_uri = str(request.url.replace(query=""))
-            _exchange_code_for_tokens(code=code, redirect_uri=redirect_uri, client_config=config)
-        except Exception as exc:
-            logger.error("Google server-side code exchange failed: %s", exc, exc_info=True)
-
-    html = """<!DOCTYPE html>
-<html lang=\"en\">
-  <head><meta charset=\"utf-8\"><title>Login complete</title></head>
-  <body style=\"font-family: sans-serif; text-align: center; margin-top: 3rem;\">
-    <h1>Google authentication completed</h1>
-    <p>You may now return to the application.</p>
-  </body>
-</html>"""
-    return HTMLResponse(content=html)
+    """Handle OAuth callback from Google."""
+    return await _OAUTH_PROVIDER.handle_callback(
+        request=request,
+        exchange_callback=_exchange_callback,
+        success_html_title="Google Login Complete",
+        success_html_heading="Google authentication completed",
+        config_loader=_get_internal_config
+    )
 
 
 @router.post("/exchange")
@@ -198,14 +181,21 @@ async def exchange_from_client(request: Request):
     redirect_uri = body.get("redirect_uri")
     platform = _normalize_platform(body.get("platform"))
 
-    if not code or not redirect_uri:
-        raise HTTPException(status_code=400, detail="code and redirect_uri are required")
+    if not all([code, redirect_uri, platform]):
+        raise HTTPException(
+            status_code=400,
+            detail="Missing required parameters: code, redirect_uri, or platform"
+        )
 
-    config = _get_platform_config(platform)
-    tokens = _exchange_code_for_tokens(
-        code=code,
-        redirect_uri=redirect_uri,
-        client_config=config,
-        code_verifier=code_verifier,
-    )
-    return JSONResponse(tokens)
+    try:
+        config = _get_internal_config(platform)
+        tokens = await _exchange_code_for_tokens(
+            code=code,
+            redirect_uri=redirect_uri,
+            client_config=config,
+            code_verifier=code_verifier
+        )
+        return tokens
+    except Exception as e:
+        logger.error("Token exchange failed: %s", str(e))
+        raise HTTPException(status_code=400, detail="Token exchange failed")

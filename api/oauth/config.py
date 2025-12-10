@@ -4,20 +4,6 @@ from pathlib import Path
 from typing import Dict, Optional, Any, Type, TypeVar, Generic, TypedDict, List
 import logging
 
-T = TypeVar('T')
-
-class AuthConfigData(TypedDict):
-    """Type hint for raw auth configuration data."""
-    provider: str
-    platform: str
-    client_id: str
-    client_secret: str
-    token_endpoint: str
-    scope: str
-    # Additional provider-specific fields
-    team_id: Optional[str]
-    key_id: Optional[str]
-    auth_key_path: Optional[str]
 
 @dataclass
 class AuthConfig:
@@ -34,7 +20,7 @@ class AuthConfig:
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
     authorization_endpoint: Optional[str] = None
-    redirect_uri: Optional[str] = None
+    redirect_uri: Optional[str] = None 
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the config to a dictionary."""
