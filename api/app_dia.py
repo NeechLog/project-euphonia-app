@@ -42,6 +42,8 @@ elif(STORAGE=="local"):
     from local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 CLOUD = "local"
 if CLOUD == "gcs":
+    # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
+    # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
     from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
 elif CLOUD == "local":
     from local_adapter.local_model import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
@@ -71,9 +73,22 @@ for route in app.routes:
     logger.debug("Route is %s", route)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
+import oauth.jwt_utils as jwt_utils
+from fastapi import HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    try:
+        payload = jwt_utils.verify_jwt_token(token)
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-    # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
-    # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
+
 @app.post('/process_audio')
 async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID)):
     """

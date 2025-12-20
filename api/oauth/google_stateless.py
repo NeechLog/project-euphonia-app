@@ -26,7 +26,9 @@ _OAUTH_PROVIDER = OAuthProvider(
 
 def _normalize_platform(value: str | None) -> str:
     """Normalize platform name to lowercase, defaulting to 'web'."""
-    return (value or "web").lower()
+    normalized = (value or "web").lower()
+    logger.debug("Normalized platform from '%s' to '%s'", value, normalized)
+    return normalized
 
 
 def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
@@ -43,6 +45,8 @@ def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
     Raises:
         HTTPException: If configuration is not found or invalid
     """
+    logger.debug("Loading Google OAuth config for platform: %s (include_secrets=%s)", 
+                platform, include_secrets)
     try:
         cfg = get_auth_config("google", platform)
         config = {
@@ -54,13 +58,16 @@ def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
             "redirect_uri": cfg.redirect_uri,
         }
         
+        logger.debug("Loaded base Google OAuth config for platform: %s", platform)
+        
         # Only include client_secret for internal server calls
         if include_secrets and hasattr(cfg, 'client_secret'):
             config["client_secret"] = cfg.client_secret
             
         return config
     except Exception as e:
-        logger.error(f"Failed to load Google config for platform '{platform}': {e}")
+        logger.error("Failed to load Google config for platform '%s': %s", 
+                    platform, str(e), exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Google authentication is not properly configured for platform '{platform}'"
@@ -72,7 +79,15 @@ def _get_internal_config(platform: str) -> dict:
     Get Google OAuth configuration including sensitive information for internal use only.
     This should only be used by server-side components that need the client_secret.
     """
-    return get_platform_config(platform, include_secrets=True)
+    logger.debug("Loading internal Google OAuth config for platform: %s", platform)
+    try:
+        config = get_platform_config(platform, include_secrets=True)
+        logger.debug("Successfully loaded internal config for platform: %s", platform)
+        return config
+    except Exception as e:
+        logger.error("Failed to load internal Google config for platform '%s': %s", 
+                    platform, str(e), exc_info=True)
+        raise
 
 
 @router.get("/config")
@@ -87,31 +102,86 @@ async def get_client_config(platform: str):
     Returns:
         JSON: Configuration containing Google OAuth parameters (without sensitive data)
     """
-    platform = _normalize_platform(platform)
-    return get_platform_config(platform, include_secrets=False)
+    logger.info("Client config requested for platform: %s", platform)
+    try:
+        platform = _normalize_platform(platform)
+        config = get_platform_config(platform, include_secrets=False)
+        logger.debug("Returning client config for platform: %s", platform)
+        return config
+    except HTTPException as he:
+        logger.warning("Client config request failed for platform '%s': %s", 
+                      platform, he.detail)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error in get_client_config for platform '%s': %s", 
+                    platform, str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while retrieving OAuth configuration"
+        )
 
 
 @router.get("/state")
 async def issue_state(request: Request):
-    platform = request.query_params.get("platform")
-    get_platform_config(platform)  # Validate platform config exists
+    """
+    Issue a new OAuth state token for CSRF protection.
+    
+    Args:
+        request: The incoming request containing the platform parameter
+        
+    Returns:
+        JSONResponse: Contains the state token and related data
+    """
+    logger.info("State token requested")
+    try:
+        platform = request.query_params.get("platform")
+        if not platform:
+            logger.warning("State request missing required 'platform' parameter")
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required parameter: platform"
+            )
+            
+        logger.debug("Validating platform config for: %s", platform)
+        get_platform_config(platform)  # Validate platform config exists
 
-    state_data = _OAUTH_PROVIDER.create_state_response(request, platform)
-    
-    resp = JSONResponse({
-        "state": state_data["state"],
-        "platform": state_data["platform"]
-    })
-    
-    resp.set_cookie(
-        key=_OAUTH_PROVIDER.state_cookie_name,
-        value=state_data["signed_state"],
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-    )
-    return resp
+        logger.info("Generating new state token for platform: %s", platform)
+        state_data = _OAUTH_PROVIDER.create_state_response(request, platform)
+        
+        logger.debug("Successfully generated state token")
+        
+        # Create response with state data
+        response_data = {
+            "state": state_data["state"],
+            "platform": state_data["platform"]
+        }
+        
+        # Create JSON response
+        response = JSONResponse(content=response_data)
+        
+        # Set the state cookie
+        response.set_cookie(
+            key=_OAUTH_PROVIDER.state_cookie_name,
+            value=state_data["signed_state"],
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            path="/"
+        )
+        
+        logger.debug("Successfully set state cookie")
+        return response
+        
+    except HTTPException as he:
+        logger.warning("State token generation failed: %s (status_code=%d)", 
+                      str(he.detail), he.status_code)
+        raise
+    except Exception as e:
+        logger.error("Unexpected error in issue_state: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while generating the state token"
+        )
 
 
 def _exchange_code_for_tokens(
