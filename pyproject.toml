@@ -57,6 +57,7 @@ dependencies = [
     "debugpy>=1.6.0",
     "python-daemon>=3.1.2",
     "jinja2>=3.1.6",
+    "jwt>=1.4.0",
 ]
 
 [tool.setuptools.packages.find]
