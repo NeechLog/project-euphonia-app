@@ -62,6 +62,7 @@ import os
 from pathlib import Path
 from oauth.google_stateless import router as google_auth_router
 from oauth.apple_stateless import router as apple_auth_router
+from oauth.routes import router as login_router
 from auth_jwt import verify_jwt
 
 # Get the absolute path to the web directory
@@ -69,6 +70,7 @@ web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
 app.mount("/web", StaticFiles(directory=web_dir), name="web")
 app.include_router(google_auth_router)
 app.include_router(apple_auth_router)
+app.include_router(login_router)
 for route in app.routes:
     logger.debug("Route is %s", route)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
