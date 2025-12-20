@@ -73,12 +73,18 @@ class OAuthProvider:
     
     def create_state_response(
         self,
+        request: Request,
         platform: str,
         extra_state_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, str]:
         """Create a new state token and return it in a response."""
         logger.info("Creating new state response for platform: %s", platform)
         platform = self._normalize_platform(platform)
+        ## DO NOT DELETE THIS COMMENT TILL WE FIGURE THIS OUT.
+        ##  TODO: set up some kind of set of states that are valid for a given platform and given client detaisl inside the request. 
+        ##       This will help prevent replay attacks. Question - should we have full request here or just 
+        ##       some kind of hash of the request or just some kind of random string?
+        
         state = secrets.token_urlsafe(32)
         
         # Add extra state data if provided
