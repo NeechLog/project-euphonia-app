@@ -71,6 +71,28 @@ class OAuthProvider:
             logger.error("Error decoding state token: %s", str(e), exc_info=True)
             raise HTTPException(status_code=500, detail="Error processing state token")
     
+    def _verify_state_and_get_platform(self, cookeie_state_value: str, state: str) -> bool:
+        """Verify the state token from the request and return the platform.
+        
+        Args:
+            request: The request object containing the state cookie
+            state: The state parameter from the OAuth callback
+            
+        Returns:
+            str: The platform extracted from the state token
+            
+        Raises:
+            HTTPException: If state verification fails
+        """
+        try:
+            logger.debug("Verifying state token")
+            payload = self._decode_state_cookie(cookeie_state_value)  
+            logger.debug("State token verified for state: %s", payload.get('state', 'unknown'))
+            return payload.get("state") == state
+        except Exception as e:
+            logger.error("State verification failed: %s", str(e), exc_info=True)
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+    
     def create_state_response(
         self,
         request: Request,
@@ -94,11 +116,7 @@ class OAuthProvider:
             state_data.update(extra_state_data)
             
         try:
-            signed = jwt.encode(
-                state_data,
-                self.state_secret,
-                algorithm=self.state_alg
-            )
+            signed = self._encode_state_cookie(state, platform)
             logger.debug("Successfully created signed state")
             
             response_data = {
@@ -161,14 +179,10 @@ class OAuthProvider:
                 )
 
             # Verify state token
-            try:
-                logger.debug("Verifying state token")
-                state_data = self._decode_state_cookie(state)
-                platform = state_data.get("platform", "unknown")
-                logger.debug("State verified for platform: %s", platform)
-            except Exception as e:
-                logger.error("State verification failed: %s", str(e), exc_info=True)
-                raise HTTPException(status_code=400, detail="Invalid state parameter")
+            if(not self._verify_state_and_get_platform(request.cookies.get(self.state_cookie_name), state)):
+                raise HTTPException(status_code=400, detail="Mismatch state parameter")
+            logger.debug("State verified for platform: %s", platform)
+            request.cookies.pop(self.state_cookie_name)
 
             # Load provider config
             try:

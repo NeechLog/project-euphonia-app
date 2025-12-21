@@ -17,10 +17,6 @@ export class AuthManager {
       const state = await this.generateState(provider, platform);
       const { url, verifier } = await oauthProvider.startLogin(state);
       console.log("URL is " + url + "and why do we need this verifier" + verifier);
-      // Store verifier and config securely
-      sessionStorage.setItem(STORAGE_KEYS.VERIFIER, verifier);
-      sessionStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
-      sessionStorage.setItem(STORAGE_KEYS.STATE, state);
 
       // Redirect to provider
       window.location.assign(url);
@@ -30,40 +26,6 @@ export class AuthManager {
     }
   }
 
-  static async handleCallback() {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const state = params.get('state');
-      
-      // Verify state matches
-      const savedState = sessionStorage.getItem(STORAGE_KEYS.STATE);
-      if (state !== savedState) {
-        throw new Error('Invalid state parameter');
-      }
-
-      // Get stored verifier and config
-      const verifier = sessionStorage.getItem(STORAGE_KEYS.VERIFIER);
-      const config = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.CONFIG));
-      
-      if (!verifier || !config) {
-        throw new Error('No active OAuth session found');
-      }
-
-      // Exchange code for tokens
-      const oauthProvider = getOAuthProvider(config.provider, config);
-      const tokens = await oauthProvider.exchangeCode(code, verifier);
-
-      // Clean up
-      this.clearSession();
-
-      return tokens;
-    } catch (error) {
-      console.error('Error handling OAuth callback:', error);
-      this.clearSession();
-      throw error;
-    }
-  }
 
   static clearSession() {
     sessionStorage.removeItem(STORAGE_KEYS.VERIFIER);
