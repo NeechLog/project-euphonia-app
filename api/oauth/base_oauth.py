@@ -71,7 +71,7 @@ class OAuthProvider:
             logger.error("Error decoding state token: %s", str(e), exc_info=True)
             raise HTTPException(status_code=500, detail="Error processing state token")
     
-    def _verify_state_and_get_platform(self, cookeie_state_value: str, state: str) -> bool:
+    def _verify_state_and_get_platform(self, cookeie_state_value: str, state: str) -> str:
         """Verify the state token from the request and return the platform.
         
         Args:
@@ -88,7 +88,9 @@ class OAuthProvider:
             logger.debug("Verifying state token")
             payload = self._decode_state_cookie(cookeie_state_value)  
             logger.debug("State token verified for state: %s", payload.get('state', 'unknown'))
-            return payload.get("state") == state
+            if payload.get("state") != state:
+                raise HTTPException(status_code=400, detail="Invalid state parameter")
+            return payload.get("platform","unknown")
         except Exception as e:
             logger.error("State verification failed: %s", str(e), exc_info=True)
             raise HTTPException(status_code=400, detail="Invalid state parameter")
@@ -179,7 +181,8 @@ class OAuthProvider:
                 )
 
             # Verify state token
-            if(not self._verify_state_and_get_platform(request.cookies.get(self.state_cookie_name), state)):
+            platform = self._verify_state_and_get_platform(request.cookies.get(self.state_cookie_name), state)
+            if not platform:
                 raise HTTPException(status_code=400, detail="Mismatch state parameter")
             logger.debug("State verified for platform: %s", platform)
             request.cookies.pop(self.state_cookie_name)
