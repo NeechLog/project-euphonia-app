@@ -146,7 +146,7 @@ async def issue_state(request: Request):
         get_platform_config(platform)  # Validate platform config exists
 
         logger.info("Generating new state token for platform: %s", platform)
-        state_data = _OAUTH_PROVIDER.create_state_response(platform)
+        state_data = _OAUTH_PROVIDER.create_state_response(request,platform)
         
         logger.debug("Successfully generated state token")
         
