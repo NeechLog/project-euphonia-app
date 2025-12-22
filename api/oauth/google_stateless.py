@@ -119,69 +119,39 @@ async def get_client_config(platform: str):
             status_code=500,
             detail="An error occurred while retrieving OAuth configuration"
         )
+        
+@router.post("/state")
+async def issue_state_post(request: Request):
+    logger.info("State token requested (POST)")
+    body = await request.json()
+    platform = body.get("platform")
+    code_verifier = body.get("code_verifier")
+    if not platform:
+        raise HTTPException(status_code=400, detail="Missing required parameter: platform")
 
+    platform = _normalize_platform(platform)
+    get_platform_config(platform)
 
-@router.get("/state")
-async def issue_state(request: Request):
-    """
-    Issue a new OAuth state token for CSRF protection.
-    
-    Args:
-        request: The incoming request containing the platform parameter
-        
-    Returns:
-        JSONResponse: Contains the state token and related data
-    """
-    logger.info("State token requested")
-    try:
-        platform = request.query_params.get("platform")
-        if not platform:
-            logger.warning("State request missing required 'platform' parameter")
-            raise HTTPException(
-                status_code=400,
-                detail="Missing required parameter: platform"
-            )
-            
-        logger.debug("Validating platform config for: %s", platform)
-        get_platform_config(platform)  # Validate platform config exists
+    extra_state_data = {}
+    if code_verifier:
+        extra_state_data["code_verifier"] = code_verifier
 
-        logger.info("Generating new state token for platform: %s", platform)
-        state_data = _OAUTH_PROVIDER.create_state_response(request,platform)
-        
-        logger.debug("Successfully generated state token")
-        
-        # Create response with state data
-        response_data = {
-            "state": state_data["state"],
-            "platform": state_data["platform"]
-        }
-        
-        # Create JSON response
-        response = JSONResponse(content=response_data)
-        
-        # Set the state cookie
-        response.set_cookie(
-            key=_OAUTH_PROVIDER.state_cookie_name,
-            value=state_data["signed_state"],
-            httponly=True,
-            secure=True,
-            samesite="lax",
-            path="/"
-        )
-        
-        logger.debug("Successfully set state cookie")
-        return response
-        
-    except HTTPException as he:
-        logger.warning("State token generation failed: %s (status_code=%d)", 
-                      str(he.detail), he.status_code)
-        raise
-    except Exception as e:
-        logger.error("Unexpected error in issue_state: %s", str(e), exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="An error occurred while generating the state token"
-        )
+    state_data = _OAUTH_PROVIDER.create_state_response(request, platform, extra_state_data=extra_state_data)
+
+    response = JSONResponse(content={
+        "state": state_data["state"],
+        "platform": state_data["platform"],
+    })
+
+    response.set_cookie(
+        key=_OAUTH_PROVIDER.state_cookie_name,
+        value=state_data["signed_state"],
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path="/",
+    )
+    return response
 
 
 def _exchange_code_for_tokens(
@@ -224,12 +194,13 @@ def _exchange_code_for_tokens(
 @router.get("/callback")
 async def callback(request: Request):
     """Handle OAuth callback from Google."""
-    async def exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    async def exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: str | None) -> Dict[str, Any]:
         """Exchange authorization code for tokens."""
         return _exchange_code_for_tokens(
             code=code,
             redirect_uri=redirect_uri,
-            client_config=config
+            client_config=config,
+            code_verifier=code_verifier,
         )
     
     return await _OAUTH_PROVIDER.handle_callback(

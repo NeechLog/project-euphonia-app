@@ -7,6 +7,27 @@ const STORAGE_KEYS = {
 };
 
 export class AuthManager {
+  static base64UrlEncode(buffer) {
+    let binary = '';
+    buffer.forEach(b => binary += String.fromCharCode(b));
+    return btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+  }
+
+  static async generateCodeVerifier() {
+    const array = new Uint8Array(32);
+    window.crypto.getRandomValues(array);
+    return this.base64UrlEncode(array);
+  }
+
+  static async generateCodeChallenge(verifier) {
+    const data = new TextEncoder().encode(verifier);
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return this.base64UrlEncode(new Uint8Array(digest));
+  }
+
   static async startLogin(provider, platform) {
     try {
       // Get configuration from server
@@ -14,9 +35,10 @@ export class AuthManager {
       const oauthProvider = getOAuthProvider(provider, config);
       
       // Generate state and get auth URL
-      const state = await this.generateState(provider, platform);
-      const { url, verifier } = await oauthProvider.startLogin(state);
-      console.log("URL is " + url + "and why do we need this verifier" + verifier);
+      const codeVerifier = await this.generateCodeVerifier();
+      const codeChallenge = await this.generateCodeChallenge(codeVerifier);
+      const state = await this.generateState(provider, platform, codeVerifier);
+      const { url } = await oauthProvider.startLogin(state, codeChallenge);
 
       // Redirect to provider
       window.location.assign(url);
@@ -26,16 +48,24 @@ export class AuthManager {
     }
   }
 
-
   static clearSession() {
     sessionStorage.removeItem(STORAGE_KEYS.VERIFIER);
     sessionStorage.removeItem(STORAGE_KEYS.CONFIG);
     sessionStorage.removeItem(STORAGE_KEYS.STATE);
   }
 
-  static async generateState(provider, platform) {
+  static async generateState(provider, platform, codeVerifier) {
     try {
-      const response = await fetch(`/auth/${provider}/state?platform=${platform}`);
+      const response = await fetch(`/auth/${provider}/state`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform,
+          code_verifier: codeVerifier,
+        })
+      });
       if (!response.ok) {
         throw new Error('Failed to generate state');
       }

@@ -37,6 +37,11 @@
         color: #10B981;
         margin-bottom: 1.5rem;
       }
+      .error-icon {
+        font-size: 4rem;
+        color: #EF4444;
+        margin-bottom: 1.5rem;
+      }
       .token-info {
         background: #f8f9fa;
         padding: 1rem;
@@ -52,11 +57,22 @@
     <script>
       // Send the token to the parent window and close the popup
       window.onload = function() {
-        // Send auth token to parent window
-        window.opener.postMessage({
-          type: 'AUTH_SUCCESS',
-          token: '{{ token }}'
-        }, window.location.origin);
+        const container = document.getElementById('authResult');
+        const isSuccess = (container && container.dataset && container.dataset.success) === '1';
+        const token = (container && container.dataset && container.dataset.token) || '';
+        const errorMessage = (container && container.dataset && container.dataset.error) || '';
+
+        if (isSuccess) {
+          window.opener.postMessage({
+            type: 'AUTH_SUCCESS',
+            token: token
+          }, window.location.origin);
+        } else {
+          window.opener.postMessage({
+            type: 'AUTH_ERROR',
+            error: errorMessage
+          }, window.location.origin);
+        }
         
         // Close the popup after a short delay
         setTimeout(function() {
@@ -66,10 +82,22 @@
     </script>
   </head>
   <body>
-    <div class="container">
+    <div
+      id="authResult"
+      class="container"
+      data-success="{{ '1' if is_success else '0' }}"
+      data-token="{{ token|e }}"
+      data-error="{{ error_message|e }}"
+    >
+      {% if is_success %}
       <div class="success-icon">✓</div>
       <h1>{{ success_html_heading }}</h1>
       <p>You have successfully authenticated. This window will close automatically.</p>
+      {% else %}
+      <div class="error-icon">✕</div>
+      <h1>Authentication failed</h1>
+      <p>{{ error_message }}</p>
+      {% endif %}
       
       <!-- For debugging purposes only, remove in production -->
       <div class="token-info">

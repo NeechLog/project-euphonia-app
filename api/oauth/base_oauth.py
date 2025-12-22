@@ -34,7 +34,7 @@ class OAuthProvider:
         logger.debug("Normalized platform from '%s' to '%s'", platform, normalized)
         return normalized
     
-    def _encode_state_cookie(self, state: str, platform: str) -> str:
+    def _encode_state_cookie(self, state: str, platform: str, extra_state_data: Optional[Dict[str, Any]] = None) -> str:
         """Encode state into a JWT cookie."""
         now = int(time.time())
         payload = {
@@ -43,6 +43,8 @@ class OAuthProvider:
             "iat": now,
             "exp": now + self.state_ttl_seconds,
         }
+        if extra_state_data:
+            payload.update(extra_state_data)
         logger.debug("Encoding state cookie for platform: %s, expires in: %d seconds", 
                     platform, self.state_ttl_seconds)
         try:
@@ -71,6 +73,19 @@ class OAuthProvider:
             logger.error("Error decoding state token: %s", str(e), exc_info=True)
             raise HTTPException(status_code=500, detail="Error processing state token")
     
+    def _verify_state_and_get_payload(self, cookeie_state_value: str, state: str) -> Dict[str, Any]:
+        """Verify the state token from the request and return the decoded payload."""
+        try:
+            logger.debug("Verifying state token")
+            payload = self._decode_state_cookie(cookeie_state_value)
+            logger.debug("State token verified for state: %s", payload.get('state', 'unknown'))
+            if payload.get("state") != state:
+                raise HTTPException(status_code=400, detail="Invalid state parameter")
+            return payload
+        except Exception as e:
+            logger.error("State verification failed: %s", str(e), exc_info=True)
+            raise HTTPException(status_code=400, detail="Invalid state parameter")
+
     def _verify_state_and_get_platform(self, cookeie_state_value: str, state: str) -> str:
         """Verify the state token from the request and return the platform.
         
@@ -84,16 +99,8 @@ class OAuthProvider:
         Raises:
             HTTPException: If state verification fails
         """
-        try:
-            logger.debug("Verifying state token")
-            payload = self._decode_state_cookie(cookeie_state_value)  
-            logger.debug("State token verified for state: %s", payload.get('state', 'unknown'))
-            if payload.get("state") != state:
-                raise HTTPException(status_code=400, detail="Invalid state parameter")
-            return payload.get("platform","unknown")
-        except Exception as e:
-            logger.error("State verification failed: %s", str(e), exc_info=True)
-            raise HTTPException(status_code=400, detail="Invalid state parameter")
+        payload = self._verify_state_and_get_payload(cookeie_state_value, state)
+        return payload.get("platform", "unknown")
     
     def create_state_response(
         self,
@@ -118,7 +125,7 @@ class OAuthProvider:
             state_data.update(extra_state_data)
             
         try:
-            signed = self._encode_state_cookie(state, platform)
+            signed = self._encode_state_cookie(state, platform, extra_state_data=extra_state_data)
             logger.debug("Successfully created signed state")
             
             response_data = {
@@ -140,7 +147,7 @@ class OAuthProvider:
     async def handle_callback(
         self,
         request: Request,
-        exchange_callback: Callable[[str, str, Any], Any],
+        exchange_callback: Callable[..., Any],
         success_html_title: str,
         success_html_heading: str,
         config_loader: Callable[[str], Any]
@@ -158,7 +165,8 @@ class OAuthProvider:
             HTMLResponse: The response to return to the client
         """
         logger.info("Handling OAuth callback request")
-        
+
+        response: Optional[HTMLResponse] = None
         try:
             # Log basic request info
             client_host = request.client.host if request.client else "unknown"
@@ -166,6 +174,12 @@ class OAuthProvider:
                         client_host, dict(request.query_params))
             
             params = dict(request.query_params)
+            if request.method.upper() == "POST":
+                try:
+                    form = await request.form()
+                    params.update(dict(form))
+                except Exception:
+                    pass
             code = params.get("code")
             state = params.get("state")
             
@@ -181,11 +195,15 @@ class OAuthProvider:
                 )
 
             # Verify state token
-            platform = self._verify_state_and_get_platform(request.cookies.get(self.state_cookie_name), state)
+            state_cookie_value = request.cookies.get(self.state_cookie_name)
+            if not state_cookie_value:
+                raise HTTPException(status_code=400, detail="Missing state cookie")
+            state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
+            platform = state_payload.get("platform", "unknown")
+            code_verifier = state_payload.get("code_verifier")
             if not platform:
                 raise HTTPException(status_code=400, detail="Mismatch state parameter")
             logger.debug("State verified for platform: %s", platform)
-            request.cookies.pop(self.state_cookie_name)
 
             # Load provider config
             try:
@@ -205,7 +223,7 @@ class OAuthProvider:
                 try:
                     logger.info("Exchanging authorization code for tokens")
                     redirect_uri = str(request.url.replace(query=""))
-                    result = await exchange_callback(code, redirect_uri, config)
+                    result = await exchange_callback(code, redirect_uri, config, code_verifier)
                     
                     # Log successful token exchange (without sensitive data)
                     if isinstance(result, dict):
@@ -235,14 +253,6 @@ class OAuthProvider:
             token = generate_jwt_token(user_info, platform)
             
             # Return success response with token in a secure HTTP-only cookie
-            from fastapi.templating import Jinja2Templates
-            import os
-            from pathlib import Path
-            # Get the absolute path to the project root
-            project_root = Path(__file__).parent.parent.parent
-            # Create templates object with the full path to the auth templates
-            templates = Jinja2Templates(directory=str(project_root / "api" / "web" / "auth"))
-            
             response = templates.TemplateResponse(
                 "auth_result.html",
                 {
@@ -254,6 +264,7 @@ class OAuthProvider:
             )
             
             # Set the JWT token in an HTTP-only cookie for additional security
+            jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
             response.set_cookie(
                 key="auth_token",
                 value=token,
@@ -264,14 +275,40 @@ class OAuthProvider:
             )
             
             return response
-            
+
         except HTTPException as he:
-            # Re-raise HTTP exceptions as they are already properly handled
-            raise
-            
+            msg = str(he.detail)
+            response = templates.TemplateResponse(
+                "auth_result.html",
+                {
+                    "request": request,
+                    "success_html_title": "Authentication failed",
+                    "success_html_heading": "Authentication failed",
+                    "token": "",
+                    "is_success": False,
+                    "error_message": msg,
+                },
+                status_code=he.status_code,
+            )
+            return response
+
         except Exception as e:
             logger.critical("Unhandled exception in OAuth callback: %s", str(e), exc_info=True)
-            raise HTTPException(
+            msg = "An unexpected error occurred during authentication"
+            response = templates.TemplateResponse(
+                "auth_result.html",
+                {
+                    "request": request,
+                    "success_html_title": "Authentication failed",
+                    "success_html_heading": "Authentication failed",
+                    "token": "",
+                    "is_success": False,
+                    "error_message": msg,
+                },
                 status_code=500,
-                detail="An unexpected error occurred during authentication"
             )
+            return response
+
+        finally:
+            if response is not None:
+                response.delete_cookie(key=self.state_cookie_name, path="/")

@@ -23,6 +23,11 @@ _OAUTH_PROVIDER = OAuthProvider(
 )
 
 
+def _normalize_platform(value: str | None) -> str:
+    """Normalize platform name to lowercase, defaulting to 'web'."""
+    return (value or "web").lower()
+
+
 def get_platform_client_config(platform: str, include_secrets: bool = False) -> Dict[str, Any]:
     """
     Get Apple OAuth configuration for the specified platform.
@@ -173,18 +178,26 @@ def _exchange_code_for_tokens(
     return payload
 
 
-@router.get("/state")
-async def issue_state(request: Request):
-    platform = request.query_params.get("platform")
-    get_platform_client_config(platform)  # Validate platform config exists
+@router.post("/state")
+async def issue_state_post(request: Request):
+    body = await request.json()
+    platform = _normalize_platform(body.get("platform"))
+    code_verifier = body.get("code_verifier")
+    if not platform:
+        raise HTTPException(status_code=400, detail="Missing required parameter: platform")
 
-    state_data = _OAUTH_PROVIDER.create_state_response(request, platform)
-    
+    get_platform_client_config(platform)
+
+    extra_state_data = {}
+    if code_verifier:
+        extra_state_data["code_verifier"] = code_verifier
+
+    state_data = _OAUTH_PROVIDER.create_state_response(request, platform, extra_state_data=extra_state_data)
     resp = JSONResponse({
         "state": state_data["state"],
-        "platform": state_data["platform"]
+        "platform": state_data["platform"],
     })
-    
+
     resp.set_cookie(
         key=_OAUTH_PROVIDER.state_cookie_name,
         value=state_data["signed_state"],
@@ -196,12 +209,13 @@ async def issue_state(request: Request):
     return resp
 
 
-async def _exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any]) -> None:
+async def _exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: Optional[str]) -> Dict[str, Any]:
     """Exchange authorization code for tokens."""
-    _exchange_code_for_tokens(
+    return _exchange_code_for_tokens(
         code=code,
         redirect_uri=redirect_uri,
-        client_cfg=config
+        client_cfg=config,
+        code_verifier=code_verifier,
     )
 
 
