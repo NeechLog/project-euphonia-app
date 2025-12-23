@@ -2,7 +2,7 @@
 import os
 from datetime import datetime, timedelta
 from typing import Dict, Any
-import jwt
+from jose import jwt
 
 def  generate_jwt_token(user_info: Dict[str, Any], platform: str) -> str:
     """
@@ -26,8 +26,8 @@ def  generate_jwt_token(user_info: Dict[str, Any], platform: str) -> str:
         'email': user_info.get('email', ''),
         'name': user_info.get('name', ''),
         'platform': platform,
-        'iat': datetime.utcnow(),  # Issued at
-        'exp': datetime.utcnow() + timedelta(hours=jwt_expire_hours)  # Expiration time
+        'iat': datetime.now(datetime.timezone.utc),  # Issued at
+        'exp': datetime.now(datetime.timezone.utc) + timedelta(hours=jwt_expire_hours)  # Expiration time
     }
     
     # Generate and return JWT token

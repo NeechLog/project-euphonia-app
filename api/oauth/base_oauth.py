@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from jose import jwt, JWTError
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class OAuthProvider:
         self.state_secret = state_secret
         self.state_ttl_seconds = state_ttl_seconds
         self.state_alg = "HS256"
+        self.templates = Jinja2Templates(directory="web/auth")
     
     def _normalize_platform(self, platform: Optional[str]) -> str:
         """Normalize platform name to lowercase, defaulting to 'web'."""
@@ -253,7 +255,7 @@ class OAuthProvider:
             token = generate_jwt_token(user_info, platform)
             
             # Return success response with token in a secure HTTP-only cookie
-            response = templates.TemplateResponse(
+            response = self.templates.TemplateResponse(
                 "auth_result.html",
                 {
                     "request": request,
@@ -278,7 +280,7 @@ class OAuthProvider:
 
         except HTTPException as he:
             msg = str(he.detail)
-            response = templates.TemplateResponse(
+            response = self.templates.TemplateResponse(
                 "auth_result.html",
                 {
                     "request": request,
@@ -295,7 +297,7 @@ class OAuthProvider:
         except Exception as e:
             logger.critical("Unhandled exception in OAuth callback: %s", str(e), exc_info=True)
             msg = "An unexpected error occurred during authentication"
-            response = templates.TemplateResponse(
+            response = self.templates.TemplateResponse(
                 "auth_result.html",
                 {
                     "request": request,
