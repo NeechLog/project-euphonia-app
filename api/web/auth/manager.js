@@ -38,7 +38,7 @@ export class AuthManager {
       const codeVerifier = await this.generateCodeVerifier();
       const codeChallenge = await this.generateCodeChallenge(codeVerifier);
       const state = await this.generateState(provider, platform, codeVerifier);
-      const { url } = await oauthProvider.startLogin(state, codeChallenge);
+      const { url } = await oauthProvider.startLogin(state, codeChallenge, 'S256');
 
       // Redirect to provider
       window.location.assign(url);

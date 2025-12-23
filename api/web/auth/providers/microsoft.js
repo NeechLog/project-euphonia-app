@@ -1,7 +1,7 @@
 import { OAuthProvider } from './base.js';
 
 export class MicrosoftOAuthProvider extends OAuthProvider {
-  async startLogin(state, codeChallenge) {
+  async startLogin(state, codeChallenge, codeChallengeMethod = 'S256') {
     const params = new URLSearchParams({
       client_id: this.config.client_id,
       response_type: 'code',
@@ -9,7 +9,7 @@ export class MicrosoftOAuthProvider extends OAuthProvider {
       scope: this.config.scope || 'openid profile email',
       state,
       code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+      code_challenge_method: codeChallengeMethod,
       response_mode: 'query'
     });
 

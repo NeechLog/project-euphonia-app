@@ -1,7 +1,7 @@
 import { OAuthProvider } from './base.js';
 
 export class AppleOAuthProvider extends OAuthProvider {
-  async startLogin(state, codeChallenge) {
+  async startLogin(state, codeChallenge, codeChallengeMethod = 'S256') {
     const params = new URLSearchParams({
       client_id: this.config.client_id,
       redirect_uri: this.config.redirect_uri,
@@ -9,7 +9,7 @@ export class AppleOAuthProvider extends OAuthProvider {
       scope: this.config.scope || 'name email',
       state,
       code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
+      code_challenge_method: codeChallengeMethod,
       response_mode: 'form_post'
     });
 
