@@ -5,7 +5,7 @@ import logging
 import secrets
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
-
+import os
 from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -249,6 +249,9 @@ class OAuthProvider:
 
             # Get user info from the OAuth result
             user_info = result.get('user_info', {}) if isinstance(result, dict) else {}
+            logger.debug("OAuth result type: %s, user_info: %s", type(result).__name__, user_info)
+            logger.debug("User ID: %s, Email: %s, Name: %s", 
+                        user_info.get('id'), user_info.get('email'), user_info.get('name'))
             
             # Generate JWT token using the utility function
             from .jwt_utils import generate_jwt_token
