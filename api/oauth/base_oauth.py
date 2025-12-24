@@ -152,7 +152,8 @@ class OAuthProvider:
         exchange_callback: Callable[..., Any],
         success_html_title: str,
         success_html_heading: str,
-        config_loader: Callable[[str], Any]
+        config_loader: Callable[[str], Any],
+        user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
     ) -> HTMLResponse:
         """Handle OAuth callback.
         
@@ -162,6 +163,7 @@ class OAuthProvider:
             success_html_title: Title for success page
             success_html_heading: Heading for success page
             config_loader: Function to load provider config
+            user_info_extractor: Function to extract user info from OAuth result
             
         Returns:
             HTMLResponse: The response to return to the client
@@ -247,11 +249,15 @@ class OAuthProvider:
                         detail="An error occurred during token exchange"
                     )
 
-            # Get user info from the OAuth result
-            user_info = result.get('user_info', {}) if isinstance(result, dict) else {}
-            logger.debug("OAuth result type: %s, user_info: %s", type(result).__name__, user_info)
-            logger.debug("User ID: %s, Email: %s, Name: %s", 
-                        user_info.get('id'), user_info.get('email'), user_info.get('name'))
+            # Extract user info using the provider-specific extractor function
+            try:
+                user_info = user_info_extractor(result, config) if isinstance(result, dict) else {}
+                logger.debug("User info extracted: %s", user_info)
+                logger.debug("User ID: %s, Email: %s, Name: %s", 
+                            user_info.get('id'), user_info.get('email'), user_info.get('name'))
+            except Exception as e:
+                logger.error("Failed to extract user info: %s", str(e), exc_info=True)
+                user_info = {}
             
             # Generate JWT token using the utility function
             from .jwt_utils import generate_jwt_token

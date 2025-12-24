@@ -92,6 +92,75 @@ async def get_client_config(platform: str):
     return get_platform_client_config(platform, include_secrets=False)
 
 
+def _extract_apple_user_info(oauth_result: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract user information from Apple OAuth result.
+    
+    Args:
+        oauth_result: The OAuth result from Apple containing tokens and potentially user info
+        config: Apple OAuth configuration (not used by Apple but kept for consistency)
+        
+    Returns:
+        Dict[str, Any]: Extracted user information with standardized fields
+    """
+    logger.debug("Extracting Apple user info from OAuth result")
+    
+    try:
+        # First try to get user info from id_token if present
+        id_token_str = oauth_result.get('id_token')
+        if id_token_str:
+            try:
+                # Decode Apple ID token (Apple uses standard JWT)
+                # Note: Apple ID tokens don't require verification for user info extraction
+                # in this context since we're just using it for user identification
+                decoded_token = jwt.decode(id_token_str, options={'verify_signature': False})
+                
+                user_info = {
+                    'id': decoded_token.get('sub'),
+                    'email': decoded_token.get('email'),
+                    'email_verified': decoded_token.get('email_verified', False),
+                    'is_private_email': decoded_token.get('is_private_email', False),
+                    'provider': 'apple'
+                }
+                
+                # Apple provides limited user info due to privacy
+                # Name is only provided on first-time authorization and comes in the 'user' parameter
+                logger.debug("Successfully extracted user info from Apple ID token: %s", user_info)
+                return user_info
+                
+            except Exception as e:
+                logger.warning("Failed to decode Apple ID token: %s", str(e))
+        
+        # Apple doesn't have a separate userinfo endpoint like Google
+        # User info is primarily in the ID token or provided during initial auth
+        
+        # If no ID token, try to extract any available info from the result
+        user_info = {
+            'provider': 'apple'
+        }
+        
+        # Check if there's any user info in other fields
+        if 'user' in oauth_result:
+            user_data = oauth_result['user']
+            if isinstance(user_data, dict):
+                if 'name' in user_data:
+                    name_info = user_data['name']
+                    if isinstance(name_info, dict):
+                        first_name = name_info.get('firstName', '')
+                        last_name = name_info.get('lastName', '')
+                        if first_name or last_name:
+                            user_info['name'] = f"{first_name} {last_name}".strip()
+                        user_info['given_name'] = first_name
+                        user_info['family_name'] = last_name
+        
+        logger.debug("Extracted Apple user info: %s", user_info)
+        return user_info
+        
+    except Exception as e:
+        logger.error("Unexpected error extracting Apple user info: %s", str(e), exc_info=True)
+        return {}
+
+
 def _load_apple_private_key(auth_key_path: str) -> str:
     """
     Load the Apple private key from the specified path.
@@ -227,7 +296,8 @@ async def callback(request: Request):
         exchange_callback=_exchange_callback,
         success_html_title="Apple Login Complete",
         success_html_heading="Apple authentication completed",
-        config_loader=_get_internal_config
+        config_loader=_get_internal_config,
+        user_info_extractor=_extract_apple_user_info
     )
 
 

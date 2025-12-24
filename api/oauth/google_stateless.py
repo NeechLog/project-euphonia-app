@@ -7,6 +7,9 @@ from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse, HTMLResponse
 from jose import jwt, JWTError
 import requests
+from google.auth import jwt as google_jwt
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from api.oauth.config import get_auth_config
 from api.oauth.base_oauth import OAuthProvider
@@ -54,6 +57,7 @@ def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
             "client_id": cfg.client_id,
             "authorization_endpoint": cfg.authorization_endpoint,
             "token_endpoint": cfg.token_endpoint,
+            "userinfo_endpoint": getattr(cfg, 'userinfo_endpoint', 'https://www.googleapis.com/oauth2/v2/userinfo'),
             "scope": cfg.scope,
             "redirect_uri": cfg.redirect_uri,
         }
@@ -154,6 +158,130 @@ async def issue_state_post(request: Request):
     return response
 
 
+def _extract_user_info_from_id_token(id_token_str: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract user information from Google ID token using google-auth library.
+    
+    Args:
+        id_token_str: The ID token string from Google OAuth result
+        config: Google OAuth configuration containing client_id for audience verification
+        
+    Returns:
+        Dict[str, Any]: Extracted user information or empty dict if failed
+    """
+    try:
+        # Verify and decode the ID token with proper audience verification
+        request = google_requests.Request()
+        client_id = config.get('client_id')
+        id_info = id_token.verify_oauth2_token(
+            id_token_str, 
+            request, 
+            client_id  # Use client_id for proper audience verification
+        )
+        
+        # Extract standard fields from Google ID token
+        user_info = {
+            'id': id_info.get('sub'),
+            'email': id_info.get('email'),
+            'name': id_info.get('name'),
+            'given_name': id_info.get('given_name'),
+            'family_name': id_info.get('family_name'),
+            'picture': id_info.get('picture'),
+            'locale': id_info.get('locale'),
+            'email_verified': id_info.get('email_verified', False),
+            'provider': 'google'
+        }
+        
+        logger.debug("Successfully extracted user info from ID token: %s", 
+                   {k: v for k, v in user_info.items() if k != 'picture'})
+        return user_info
+        
+    except Exception as e:
+        logger.warning("Failed to verify Google ID token: %s", str(e))
+        return {}
+
+
+def _extract_user_info_from_endpoint(access_token: str, userinfo_endpoint: str) -> Dict[str, Any]:
+    """
+    Extract user information from Google's userinfo endpoint using access token.
+    
+    Args:
+        access_token: The OAuth access token
+        userinfo_endpoint: The userinfo endpoint URL from config
+        
+    Returns:
+        Dict[str, Any]: Extracted user information or empty dict if failed
+    """
+    try:
+        headers = {'Authorization': f'Bearer {access_token}'}
+        response = requests.get(userinfo_endpoint, headers=headers, timeout=10)
+        
+        if response.ok:
+            google_user_info = response.json()
+            
+            user_info = {
+                'id': google_user_info.get('id'),
+                'email': google_user_info.get('email'),
+                'name': google_user_info.get('name'),
+                'given_name': google_user_info.get('given_name'),
+                'family_name': google_user_info.get('family_name'),
+                'picture': google_user_info.get('picture'),
+                'locale': google_user_info.get('locale'),
+                'verified_email': google_user_info.get('verified_email', False),
+                'provider': 'google'
+            }
+            
+            logger.debug("Successfully extracted user info from userinfo endpoint: %s", 
+                       {k: v for k, v in user_info.items() if k != 'picture'})
+            return user_info
+        else:
+            logger.warning("Userinfo endpoint returned status %d: %s", 
+                         response.status_code, response.text)
+            
+    except Exception as e:
+        logger.warning("Failed to get user info from Google userinfo endpoint: %s", str(e))
+    
+    return {}
+
+
+def _extract_google_user_info(oauth_result: Dict[str, Any], config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract user information from Google OAuth result using google-auth library.
+    
+    Args:
+        oauth_result: The OAuth result from Google containing tokens and potentially user info
+        config: Google OAuth configuration containing endpoints
+        
+    Returns:
+        Dict[str, Any]: Extracted user information with standardized fields
+    """
+    logger.debug("Extracting Google user info from OAuth result")
+    
+    try:
+        # First try to get user info from id_token if present
+        id_token_str = oauth_result.get('id_token')
+        if id_token_str:
+            user_info = _extract_user_info_from_id_token(id_token_str, config)
+            if user_info:
+                return user_info
+        
+        # If ID token extraction fails, try to use access_token to get user info
+        access_token = oauth_result.get('access_token')
+        if access_token:
+            userinfo_endpoint = config.get('userinfo_endpoint', 'https://www.googleapis.com/oauth2/v2/userinfo')
+            user_info = _extract_user_info_from_endpoint(access_token, userinfo_endpoint)
+            if user_info:
+                return user_info
+        
+        # If both methods fail, return empty dict
+        logger.warning("Could not extract user info from Google OAuth result")
+        return {}
+        
+    except Exception as e:
+        logger.error("Unexpected error extracting Google user info: %s", str(e), exc_info=True)
+        return {}
+
+
 def _exchange_code_for_tokens(
     code: str,
     redirect_uri: str,
@@ -208,7 +336,8 @@ async def callback(request: Request):
         exchange_callback=exchange_callback,
         success_html_title="Google Login Complete",
         success_html_heading="Google authentication completed",
-        config_loader=_get_internal_config
+        config_loader=_get_internal_config,
+        user_info_extractor=_extract_google_user_info
     )
 
 
