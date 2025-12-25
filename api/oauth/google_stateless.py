@@ -2,7 +2,7 @@ import os
 import time
 import secrets
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse, HTMLResponse
 from jose import jwt, JWTError
