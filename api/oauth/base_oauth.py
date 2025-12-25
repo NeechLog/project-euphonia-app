@@ -293,7 +293,7 @@ class OAuthProvider:
                     "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
                     "token": token,
                     "is_success": True,
-                    "va-dir": user_client_info.get("va-dir", "")
+                    "va-dir": user_client_info.get("va-dir", ""),
                     "Name" : user_client_info.get("Name", "")
                 }
             )
