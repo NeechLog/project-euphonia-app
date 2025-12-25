@@ -59,8 +59,10 @@
       window.onload = function() {
         const container = document.getElementById('authResult');
         const isSuccess = (container && container.dataset && container.dataset.success) === '1';
-        const token = (container && container.dataset && container.dataset.token) || '';
         const errorMessage = (container && container.dataset && container.dataset.error) || '';
+        
+        // Get token from template variable (server-side rendered)
+        const token = "{{ token|e }}";
 
         if (isSuccess) {
           window.opener.postMessage({
@@ -86,7 +88,6 @@
       id="authResult"
       class="container"
       data-success="{{ '1' if is_success else '0' }}"
-      data-token="{{ token|e }}"
       data-error="{{ error_message|e }}"
     >
       {% if is_success %}
@@ -99,10 +100,7 @@
       <p>{{ error_message }}</p>
       {% endif %}
       
-      <!-- For debugging purposes only, remove in production -->
-      <div class="token-info">
-        <strong>Token:</strong> {{ token }}
-      </div>
+      <!-- Token is passed via JavaScript postMessage, not displayed for security -->
     </div>
   </body>
 </html>

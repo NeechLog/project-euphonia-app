@@ -16,6 +16,7 @@ from uvicorn.config import Config
 from uvicorn import Server
 from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
 from api.oauth import init_auth_config
+from api.auth_util import generate_jwt_token, client_provided_storage_callback, extract_user_client_info
 
 def load_env(filepath='.env.oidc.example'):
     """
@@ -124,9 +125,18 @@ def run_uvicorn():
         config_dir = os.environ.get('AUTH_CONFIG_DIR')
         if config_dir:
             print(f"Using auth config from: {config_dir}")
-            auth_config = init_auth_config(base_dir=Path(config_dir))
+            auth_config = init_auth_config(
+                base_dir=Path(config_dir), 
+                token_generator_func=generate_jwt_token,
+                storage_callback=client_provided_storage_callback,
+                client_info_extractor=extract_user_client_info
+            )
         else:
-            auth_config = init_auth_config()
+            auth_config = init_auth_config(
+                token_generator_func=generate_jwt_token,
+                storage_callback=client_provided_storage_callback,
+                client_info_extractor=extract_user_client_info
+            )
         print(f"AuthConfig initialized successfully: {auth_config}")
         
         # Set up logging

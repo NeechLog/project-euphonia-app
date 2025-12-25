@@ -11,20 +11,35 @@ from google.auth import jwt as google_jwt
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 
-from api.oauth.config import get_auth_config
+from api.oauth.config import get_auth_config, init_auth_config
 from api.oauth.base_oauth import OAuthProvider
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth/google", tags=["auth-google"])
 
-# Initialize the OAuth provider
-_OAUTH_PROVIDER = OAuthProvider(
-    provider_name="Google",
-    state_cookie_name="g_oidc_state",
-    state_secret=os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY", "change-me-state-secret")),
-    state_ttl_seconds=600
-)
+# OAuth provider instance will be created on demand with token generator function
+_OAUTH_PROVIDER: Optional[OAuthProvider] = None
+
+def get_oauth_provider() -> OAuthProvider:
+    """Get OAuth provider instance with token generator function from config."""
+    global _OAUTH_PROVIDER
+    if _OAUTH_PROVIDER is None:
+        # Try to get token generator from auth config
+        try:
+            from api.oauth.config import _auth_config
+            token_generator_func = _auth_config.get_token_generator_func() if _auth_config else None
+        except (ImportError, AttributeError):
+            token_generator_func = None
+        
+        _OAUTH_PROVIDER = OAuthProvider(
+            provider_name="Google",
+            state_cookie_name="g_oidc_state",
+            state_secret=os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY", "change-me-state-secret")),
+            state_ttl_seconds=600,
+            token_generator_func=token_generator_func
+        )
+    return _OAUTH_PROVIDER
 
 
 def _normalize_platform(value: str | None) -> str:
@@ -140,7 +155,7 @@ async def issue_state_post(request: Request):
     if code_verifier:
         extra_state_data["code_verifier"] = code_verifier
 
-    state_data = _OAUTH_PROVIDER.create_state_response(request, platform, extra_state_data=extra_state_data)
+    state_data = get_oauth_provider().create_state_response(request, platform, extra_state_data=extra_state_data)
 
     response = JSONResponse(content={
         "state": state_data["state"],
@@ -148,7 +163,7 @@ async def issue_state_post(request: Request):
     })
 
     response.set_cookie(
-        key=_OAUTH_PROVIDER.state_cookie_name,
+        key=get_oauth_provider().state_cookie_name,
         value=state_data["signed_state"],
         httponly=True,
         secure=True,
@@ -331,7 +346,7 @@ async def callback(request: Request):
             code_verifier=code_verifier,
         )
     
-    return await _OAUTH_PROVIDER.handle_callback(
+    return await get_oauth_provider().handle_callback(
         request=request,
         exchange_callback=exchange_callback,
         success_html_title="Google Login Complete",

@@ -4,13 +4,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from jose import jwt
 
-def  generate_jwt_token(user_info: Dict[str, Any], platform: str) -> str:
+def  generate_jwt_token(user_info: Dict[str, Any], platform: str, provider_name: str) -> str:
     """
     Generate a JWT token with user information.
     
     Args:
         user_info: Dictionary containing user information (id, email, name, etc.)
         platform: The platform the user is authenticating from (e.g., 'web', 'ios', 'android')
+        provider_name: The OAuth provider name (e.g., 'google', 'apple')
         
     Returns:
         str: JWT token string
@@ -26,6 +27,7 @@ def  generate_jwt_token(user_info: Dict[str, Any], platform: str) -> str:
         'email': user_info.get('email', ''),
         'name': user_info.get('name', ''),
         'platform': platform,
+        'provider': provider_name,
         'iat': datetime.now(timezone.utc),  # Issued at
         'exp': datetime.now(timezone.utc) + timedelta(hours=jwt_expire_hours)  # Expiration time
     }

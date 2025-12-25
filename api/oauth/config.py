@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Dict, Optional, Any, Type, TypeVar, Generic, TypedDict, List
+from typing import Dict, Optional, Any, Type, TypeVar, Generic, TypedDict, List, Callable
 import logging
 
 
@@ -20,7 +20,9 @@ class AuthConfig:
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
     authorization_endpoint: Optional[str] = None
-    redirect_uri: Optional[str] = None 
+    redirect_uri: Optional[str] = None
+    storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None
+    client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None 
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert the config to a dictionary."""
@@ -39,7 +41,13 @@ class AuthConfigManager:
     Example: google_web.env, apple_ios.env
     """
     
-    def __init__(self, base_dir: Optional[Path] = None):
+    def __init__(
+        self, 
+        base_dir: Optional[Path] = None,
+        token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
+        storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
+        client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None
+    ):
         # Pick directory from env, with a sensible default
         if base_dir is None:
             env_dir = os.getenv("AUTH_CONFIG_DIR")
@@ -51,6 +59,9 @@ class AuthConfigManager:
                 base_dir = project_root / "conf.d"
         
         self.base_dir = base_dir
+        self.token_generator_func = token_generator_func
+        self.storage_callback = storage_callback
+        self.client_info_extractor = client_info_extractor
         self._configs: Dict[str, Dict[str, AuthConfig]] = {}
         self._load_all_configs()
     
@@ -117,7 +128,9 @@ class AuthConfigManager:
             key_id=env_vars.get('KEY_ID'),
             authorization_endpoint=env_vars.get('auth_uri'),
             redirect_uri=env_vars.get('redirect_uri'),
-            auth_key_path=env_vars.get('AUTH_KEY_PATH')
+            auth_key_path=env_vars.get('AUTH_KEY_PATH'),
+            storage_callback=self.storage_callback,
+            client_info_extractor=self.client_info_extractor
         )
         
         # Store the config
@@ -167,6 +180,10 @@ class AuthConfigManager:
                 f"Available providers: {list(self._configs.keys())}"
             )
     
+    def get_token_generator_func(self) -> Optional[Callable[[Dict[str, Any], str, str], str]]:
+        """Get the token generator function."""
+        return self.token_generator_func
+    
     def get_all_configs(self) -> Dict[str, Dict[str, AuthConfig]]:
         """Get all loaded configurations."""
         return self._configs
@@ -179,16 +196,30 @@ class AuthConfigManager:
 # Global instance
 _auth_config: Optional[AuthConfigManager] = None
 
-def init_auth_config(base_dir: Optional[Path] = None) -> AuthConfigManager:
+def init_auth_config(
+    base_dir: Optional[Path] = None,
+    token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
+    storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
+    client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None
+) -> AuthConfigManager:
     """Initialize and return the global AuthConfigManager instance.
     
     Args:
         base_dir: Optional base directory to look for config files. If not provided,
                  will use AUTH_CONFIG_DIR environment variable or default to project_root/conf.d
+        token_generator_func: Optional function to generate JWT tokens. If not provided,
+                             will use the default generate_jwt_token function
+        storage_callback: Optional function to handle user data storage after authentication
+        client_info_extractor: Optional function to extract user client information for display
     """
     global _auth_config
     if _auth_config is None:
-        _auth_config = AuthConfigManager(base_dir=base_dir)
+        _auth_config = AuthConfigManager(
+            base_dir=base_dir, 
+            token_generator_func=token_generator_func,
+            storage_callback=storage_callback,
+            client_info_extractor=client_info_extractor
+        )
         logging.info("AuthConfig initialized successfully")
     return _auth_config
 

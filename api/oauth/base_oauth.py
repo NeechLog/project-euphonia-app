@@ -22,12 +22,14 @@ class OAuthProvider:
         state_cookie_name: str,
         state_secret: str,
         state_ttl_seconds: int = 600,
+        token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
     ):
         self.provider_name = provider_name
         self.state_cookie_name = state_cookie_name
         self.state_secret = state_secret
         self.state_ttl_seconds = state_ttl_seconds
         self.state_alg = "HS256"
+        self.token_generator_func = token_generator_func
         self.templates = Jinja2Templates(directory="web/auth")
     
     def _normalize_platform(self, platform: Optional[str]) -> str:
@@ -259,18 +261,40 @@ class OAuthProvider:
                 logger.error("Failed to extract user info: %s", str(e), exc_info=True)
                 user_info = {}
             
-            # Generate JWT token using the utility function
-            from .jwt_utils import generate_jwt_token
-            token = generate_jwt_token(user_info, platform)
+            # Generate JWT token using the injected function or default
+            if self.token_generator_func:
+                token = self.token_generator_func(user_info, platform, self.provider_name)
+            else:
+                from .jwt_utils import generate_jwt_token
+                token = generate_jwt_token(user_info, platform, self.provider_name)
+
+            # Use the configured callback functions
+            if config.storage_callback:
+                config.storage_callback(user_info, platform, self.provider_name)
+            else:
+                # Fallback to imported function if no config callback
+                from ..auth_util import client_provided_storage_callback
+                client_provided_storage_callback(user_info, platform, self.provider_name)
+            
+            if config.client_info_extractor:
+                user_client_info = config.client_info_extractor(user_info, platform, self.provider_name)
+            else:
+                # Fallback to imported function if no config callback
+                from ..auth_util import extract_user_client_info
+                user_client_info = extract_user_client_info(user_info, platform, self.provider_name)
+
             
             # Return success response with token in a secure HTTP-only cookie
             response = self.templates.TemplateResponse(
                 "auth_result.html",
                 {
                     "request": request,
-                    "success_html_title": success_html_title,
-                    "success_html_heading": success_html_heading,
-                    "token": token
+                    "success_html_title": user_client_info.get("success_html_title", "Authentication successful"),
+                    "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
+                    "token": token,
+                    "is_success": True,
+                    "va-dir": user_client_info.get("va-dir", "")
+                    "Name" : user_client_info.get("Name", "")
                 }
             )
             

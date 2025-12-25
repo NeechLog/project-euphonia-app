@@ -63,7 +63,6 @@ from pathlib import Path
 from oauth.google_stateless import router as google_auth_router
 from oauth.apple_stateless import router as apple_auth_router
 from oauth.routes import router as login_router
-from auth_jwt import verify_jwt
 
 # Get the absolute path to the web directory
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
@@ -510,19 +509,6 @@ async def is_valid_wav(file_storage, check_format=True):
             pass
         # Reset file pointer for any potential future use
         await file_storage.seek(0)
-
-
-@app.get("/protected")
-async def protected_endpoint(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Simple protected endpoint that validates a bearer JWT and returns its claims."""
-    token = credentials.credentials
-    try:
-        claims = verify_jwt(token)
-    except Exception as e:
-        logger.warning(f"JWT verification failed in /protected: {e}")
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-    return {"status": "ok", "claims": claims}
 
 
 if __name__ == "__main__":
