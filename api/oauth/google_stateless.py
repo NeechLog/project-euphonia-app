@@ -31,10 +31,12 @@ def get_oauth_provider() -> OAuthProvider:
             token_generator_func = _auth_config.get_token_generator_func() if _auth_config else None
             storage_func = _auth_config.get_storage_func() if _auth_config else None
             user_info_func = _auth_config.get_user_info_func() if _auth_config else None
+            cookie_generator_func = _auth_config.get_cookie_generator_func() if _auth_config else None
         except (ImportError, AttributeError):
             token_generator_func = None
             storage_func = None
             user_info_func = None
+            cookie_generator_func = None
         
         _OAUTH_PROVIDER = OAuthProvider(
             provider_name="Google",
@@ -43,7 +45,8 @@ def get_oauth_provider() -> OAuthProvider:
             state_ttl_seconds=600,
             token_generator_func=token_generator_func,
             storage_func=storage_func,
-            user_info_func=user_info_func
+            user_info_func=user_info_func,
+            cookie_generator_func=cookie_generator_func
         )
     return _OAUTH_PROVIDER
 

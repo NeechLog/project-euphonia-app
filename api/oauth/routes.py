@@ -53,17 +53,16 @@ async def logout(request: Request):
     if hasattr(request, 'session'):
         request.session.clear()
     
-    # Clear all authentication cookies
-    cookie_domain = os.getenv('COOKIE_DOMAIN')
-    cookie_kwargs = {
-        'path': '/',
-        'httponly': True,
-        'samesite': 'lax'
-    }
-    
-    # Add domain if specified (for cross-domain cookies in production)
-    if cookie_domain:
-        cookie_kwargs['domain'] = cookie_domain
+    from api.oauth.config import get_auth_config
+
+    # Get the cookie remover function
+    auth_config = get_auth_config(provider, platform)
+    cookie_remover = auth_config.get_cookie_remover_func()
+
+    # Use it to delete cookies
+    if cookie_remover:
+        cookie_config = cookie_remover()
+        response.set_cookie(**cookie_config)
     
     # Clear the access token cookie
     response.delete_cookie('access_token', **cookie_kwargs)

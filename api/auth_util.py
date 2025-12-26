@@ -4,6 +4,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from jose import jwt
 
+# Cookie constants
+AUTH_COOKIE_KEY = "auth_token"
+
 def isUserAdmin(email: str) -> bool:
     """
     Check if a user email is in the admin list.
@@ -213,4 +216,92 @@ def extract_user_client_info(user_info: Dict[str, Any], platform: str, provider_
             "Provider": provider_name,
             "Platform": platform,
             "User_ID": "",
+        }
+
+def generate_auth_cookies(token: str, platform: str, provider_name: str) -> Dict[str, Any]:
+    """
+    Generate authentication cookie configuration for setting secure HTTP-only cookies.
+    
+    Args:
+        token: JWT token string to set in the cookie
+        platform: The platform the user is authenticating from (e.g., 'web', 'ios', 'android')
+        provider_name: The OAuth provider name (e.g., 'google', 'apple')
+        
+    Returns:
+        Dict[str, Any]: Cookie configuration dictionary with settings for secure cookies
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Get JWT expiration from environment or use default
+        jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
+        
+        # Build cookie configuration
+        cookie_config = {
+            "key": AUTH_COOKIE_KEY,
+            "value": token,
+            "httponly": True,
+            "secure": True,  # Only send over HTTPS in production
+            "samesite": 'lax',  # Helps prevent CSRF attacks
+            "max_age": jwt_expire_hours * 3600,  # Match JWT expiration
+            "domain": None,  # Let browser use default (current domain)
+            "path": '/',  # Make cookie available across the entire site
+        }
+        
+        logger.debug(f"Generated cookie config for {provider_name} on {platform}")
+        return cookie_config
+        
+    except Exception as e:
+        logger.error(f"Error in generate_auth_cookies: {e}", exc_info=True)
+        # Return fallback basic cookie config
+        return {
+            "key": AUTH_COOKIE_KEY,
+            "value": token,
+            "httponly": True,
+            "secure": True,
+            "samesite": 'lax',
+            "max_age": 24 * 3600,  # 24 hours default
+            "domain": None,
+            "path": '/',
+        }
+
+def delete_auth_cookies() -> Dict[str, Any]:
+    """
+    Generate cookie configuration to delete the authentication cookie.
+    
+    Returns:
+        Dict[str, Any]: Cookie configuration dictionary with settings to delete the cookie
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Build cookie deletion configuration
+        cookie_config = {
+            "key": AUTH_COOKIE_KEY,
+            "value": "",  # Empty value for deletion
+            "httponly": True,
+            "secure": True,  # Only send over HTTPS in production
+            "samesite": 'lax',  # Helps prevent CSRF attacks
+            "max_age": 0,  # Immediate expiration (deletes cookie)
+            "domain": None,  # Let browser use default (current domain)
+            "path": '/',  # Make cookie available across the entire site
+        }
+        
+        logger.debug("Generated cookie deletion config")
+        return cookie_config
+        
+    except Exception as e:
+        logger.error(f"Error in delete_auth_cookies: {e}", exc_info=True)
+        # Return fallback deletion config
+        return {
+            "key": AUTH_COOKIE_KEY,
+            "value": "",
+            "httponly": True,
+            "secure": True,
+            "samesite": 'lax',
+            "max_age": 0,  # Immediate expiration
+            "domain": None,
+            "path": '/',
         }

@@ -28,6 +28,7 @@ class OAuthProvider:
         token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
         storage_func: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
         user_info_func: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None,
+        cookie_generator_func: Optional[Callable[[str, str, str], Dict[str, Any]]] = None,
     ):
         self.provider_name = provider_name
         self.state_cookie_name = state_cookie_name
@@ -37,6 +38,7 @@ class OAuthProvider:
         self.token_generator_func = token_generator_func
         self.storage_func = storage_func
         self.client_user_info_func = user_info_func
+        self.cookie_generator_func = cookie_generator_func
         self.templates = Jinja2Templates(directory="web/auth")
     
     def _normalize_platform(self, platform: Optional[str]) -> str:
@@ -321,18 +323,23 @@ class OAuthProvider:
                     }
                 )
             
-            # Set the JWT token in an HTTP-only cookie for additional security (applies to all platforms)
-            jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
-            response.set_cookie(
-                key="auth_token",
-                value=token,
-                httponly=True,
-                secure=True,  # Only send over HTTPS in production
-                samesite='lax',  # Helps prevent CSRF attacks
-                max_age=jwt_expire_hours * 3600,  # Match JWT expiration
-                domain=None,  # Let browser use default (current domain)
-                path='/',  # Make cookie available across the entire site
-            )
+            # Set the JWT token in an HTTP-only cookie using the cookie generator function
+            if self.cookie_generator_func:
+                cookie_config = self.cookie_generator_func(token, platform, self.provider_name)
+                response.set_cookie(**cookie_config)
+            else:
+                # Default cookie setting for backward compatibility
+                jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
+                response.set_cookie(
+                    key="auth_token",
+                    value=token,
+                    httponly=True,
+                    secure=True,  # Only send over HTTPS in production
+                    samesite='lax',  # Helps prevent CSRF attacks
+                    max_age=jwt_expire_hours * 3600,  # Match JWT expiration
+                    domain=None,  # Let browser use default (current domain)
+                    path='/',  # Make cookie available across the entire site
+                )
             
             return response
 

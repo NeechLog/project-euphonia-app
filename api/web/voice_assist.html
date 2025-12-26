@@ -110,8 +110,20 @@
             top: 40px;
         }
     </style>
+    <!-- Login Styles -->
+    <link rel="stylesheet" href="login_styles.css">
 </head>
 <body>
+    <!-- Login Area -->
+    <div class="login-area">
+        <div id="authContainer">
+            <!-- This will be populated by JavaScript based on login state -->
+        </div>
+        <div id="loginPopup" class="login-popup">
+            <!-- Login form will be loaded here -->
+        </div>
+    </div>
+
     <div class="container">
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Voice Assist Web App</h1>
         <button id="recordButton" class="btn btn-record">Clone voice</button>
@@ -174,12 +186,15 @@
     <!-- Include the external JavaScript file -->
     <!--script src="https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"></script>
     <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.js"></script>
-    <script src="ffmpeg_conversion_functions.js"></script-->
-    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <script src="ffmpeg_conversion_functions.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script-->
     <script src ="audioConverter.js"></script>
     <script src="utils.js"></script>
     <script src="voice_assist_util.js"></script>
     <script src="train_util.js"></script>
     <script src="clone_util.js"></script>
+    
+    <!-- Login/Authentication JavaScript -->
+    <script src="login_auth.js"></script>
 </body>
 </html>

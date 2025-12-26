@@ -46,7 +46,9 @@ class AuthConfigManager:
         base_dir: Optional[Path] = None,
         token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
         storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
-        client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None
+        client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None,
+        cookie_generator_func: Optional[Callable[[str, str, str], Dict[str, Any]]] = None,
+        cookie_remover_func: Optional[Callable[[], Dict[str, Any]]] = None
     ):
         # Pick directory from env, with a sensible default
         if base_dir is None:
@@ -62,6 +64,8 @@ class AuthConfigManager:
         self.token_generator_func = token_generator_func
         self.storage_callback = storage_callback
         self.client_info_extractor = client_info_extractor
+        self.cookie_generator_func = cookie_generator_func
+        self.cookie_remover_func = cookie_remover_func
         self._configs: Dict[str, Dict[str, AuthConfig]] = {}
         self._load_all_configs()
     
@@ -189,8 +193,16 @@ class AuthConfigManager:
         return self.storage_callback
     
     def get_user_info_func(self) -> Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]]:
-        """Get the user info function."""
+        """Get the user info extractor function."""
         return self.client_info_extractor
+    
+    def get_cookie_generator_func(self) -> Optional[Callable[[str, str, str], Dict[str, Any]]]:
+        """Get the cookie generator function."""
+        return self.cookie_generator_func
+    
+    def get_cookie_remover_func(self) -> Optional[Callable[[], Dict[str, Any]]]:
+        """Get the cookie remover function."""
+        return self.cookie_remover_func
     
     def get_all_configs(self) -> Dict[str, Dict[str, AuthConfig]]:
         """Get all loaded configurations."""
@@ -208,7 +220,9 @@ def init_auth_config(
     base_dir: Optional[Path] = None,
     token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
     storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
-    client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None
+    client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None,
+    cookie_generator_func: Optional[Callable[[str, str, str], Dict[str, Any]]] = None,
+    cookie_remover_func: Optional[Callable[[], Dict[str, Any]]] = None
 ) -> AuthConfigManager:
     """Initialize and return the global AuthConfigManager instance.
     
@@ -219,6 +233,8 @@ def init_auth_config(
                              will use the default generate_jwt_token function
         storage_callback: Optional function to handle user data storage after authentication
         client_info_extractor: Optional function to extract user client information for display
+        cookie_generator_func: Optional function to generate cookie configuration for secure cookies
+        cookie_remover_func: Optional function to generate cookie configuration for removing cookies
     """
     global _auth_config
     if _auth_config is None:
@@ -226,7 +242,9 @@ def init_auth_config(
             base_dir=base_dir, 
             token_generator_func=token_generator_func,
             storage_callback=storage_callback,
-            client_info_extractor=client_info_extractor
+            client_info_extractor=client_info_extractor,
+            cookie_generator_func=cookie_generator_func,
+            cookie_remover_func=cookie_remover_func
         )
         logging.info("AuthConfig initialized successfully")
     return _auth_config

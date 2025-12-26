@@ -65,7 +65,7 @@
         const token = "{{ token|e }}";
         
         // Parse JSON data from template
-        const jsonData = JSON.parse('{{ json_data|e }}');
+        const jsonData = JSON.parse('{{ json_data|safe }}');
         console.log('Auth data:', jsonData);
 
         if (isSuccess) {

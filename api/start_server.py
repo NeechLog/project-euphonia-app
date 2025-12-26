@@ -16,7 +16,7 @@ from uvicorn.config import Config
 from uvicorn import Server
 from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
 from api.oauth import init_auth_config
-from api.auth_util import generate_jwt_token, client_provided_storage_callback, extract_user_client_info
+from api.auth_util import generate_jwt_token, client_provided_storage_callback, extract_user_client_info, generate_auth_cookies, delete_auth_cookies
 
 def load_env(filepath='.env.oidc.example'):
     """
@@ -129,13 +129,17 @@ def run_uvicorn():
                 base_dir=Path(config_dir), 
                 token_generator_func=generate_jwt_token,
                 storage_callback=client_provided_storage_callback,
-                client_info_extractor=extract_user_client_info
+                client_info_extractor=extract_user_client_info,
+                cookie_generator_func=generate_auth_cookies,
+                cookie_remover_func=delete_auth_cookies
             )
         else:
             auth_config = init_auth_config(
                 token_generator_func=generate_jwt_token,
                 storage_callback=client_provided_storage_callback,
-                client_info_extractor=extract_user_client_info
+                client_info_extractor=extract_user_client_info,
+                cookie_generator_func=generate_auth_cookies,
+                cookie_remover_func=delete_auth_cookies
             )
         print(f"AuthConfig initialized successfully: {auth_config}")
         
