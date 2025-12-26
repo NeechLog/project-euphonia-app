@@ -6,8 +6,11 @@ import secrets
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 import os
+import json
+from datetime import datetime, timezone
+from api.oauth import jwt_utils
 from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from jose import jwt, JWTError
 
@@ -23,6 +26,8 @@ class OAuthProvider:
         state_secret: str,
         state_ttl_seconds: int = 600,
         token_generator_func: Optional[Callable[[Dict[str, Any], str, str], str]] = None,
+        storage_func: Optional[Callable[[Dict[str, Any], str, str], None]] = None,
+        user_info_func: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None,
     ):
         self.provider_name = provider_name
         self.state_cookie_name = state_cookie_name
@@ -30,6 +35,8 @@ class OAuthProvider:
         self.state_ttl_seconds = state_ttl_seconds
         self.state_alg = "HS256"
         self.token_generator_func = token_generator_func
+        self.storage_func = storage_func
+        self.client_user_info_func = user_info_func
         self.templates = Jinja2Templates(directory="web/auth")
     
     def _normalize_platform(self, platform: Optional[str]) -> str:
@@ -148,6 +155,60 @@ class OAuthProvider:
                 detail="Failed to create authentication state"
             )
     
+    async def _extract_oauth_params_and_verify_state(
+        self, 
+        request: Request
+    ) -> Tuple[str, str, str, Optional[str]]:
+        """Extract OAuth parameters and verify state token.
+        
+        Args:
+            request: The incoming request
+            
+        Returns:
+            Tuple containing: (code, state, platform, code_verifier)
+            
+        Raises:
+            HTTPException: If parameters are missing or state verification fails
+        """
+        # Log basic request info
+        client_host = request.client.host if request.client else "unknown"
+        logger.debug("OAuth callback from %s with query params: %s", 
+                    client_host, dict(request.query_params))
+        
+        params = dict(request.query_params)
+        if request.method.upper() == "POST":
+            try:
+                form = await request.form()
+                params.update(dict(form))
+            except Exception:
+                pass
+        code = params.get("code")
+        state = params.get("state")
+        
+        logger.debug("Received OAuth callback - code present: %s, state present: %s", 
+                    bool(code), bool(state))
+
+        if not code or not state:
+            error_msg = "Missing required parameters: code and state are required"
+            logger.warning("Invalid OAuth callback: %s", error_msg)
+            raise HTTPException(
+                status_code=400,
+                detail=error_msg
+            )
+
+        # Verify state token
+        state_cookie_value = request.cookies.get(self.state_cookie_name)
+        if not state_cookie_value:
+            raise HTTPException(status_code=400, detail="Missing state cookie")
+        state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
+        platform = state_payload.get("platform", "unknown")
+        code_verifier = state_payload.get("code_verifier")
+        if not platform:
+            raise HTTPException(status_code=400, detail="Mismatch state parameter")
+        logger.debug("State verified for platform: %s", platform)
+        
+        return code, state, platform, code_verifier
+
     async def handle_callback(
         self,
         request: Request,
@@ -156,7 +217,7 @@ class OAuthProvider:
         success_html_heading: str,
         config_loader: Callable[[str], Any],
         user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
-    ) -> HTMLResponse:
+    ) -> HTMLResponse | JSONResponse:
         """Handle OAuth callback.
         
         Args:
@@ -168,88 +229,35 @@ class OAuthProvider:
             user_info_extractor: Function to extract user info from OAuth result
             
         Returns:
-            HTMLResponse: The response to return to the client
+            HTMLResponse | JSONResponse: The response to return to the client (HTML for web, JSON for other platforms)
         """
         logger.info("Handling OAuth callback request")
-
-        response: Optional[HTMLResponse] = None
+        response: Optional[HTMLResponse | JSONResponse] = None
         try:
-            # Log basic request info
-            client_host = request.client.host if request.client else "unknown"
-            logger.debug("OAuth callback from %s with query params: %s", 
-                        client_host, dict(request.query_params))
-            
-            params = dict(request.query_params)
-            if request.method.upper() == "POST":
-                try:
-                    form = await request.form()
-                    params.update(dict(form))
-                except Exception:
-                    pass
-            code = params.get("code")
-            state = params.get("state")
-            
-            logger.debug("Received OAuth callback - code present: %s, state present: %s", 
-                        bool(code), bool(state))
-
-            if not code or not state:
-                error_msg = "Missing required parameters: code and state are required"
-                logger.warning("Invalid OAuth callback: %s", error_msg)
-                raise HTTPException(
-                    status_code=400,
-                    detail=error_msg
-                )
-
-            # Verify state token
-            state_cookie_value = request.cookies.get(self.state_cookie_name)
-            if not state_cookie_value:
-                raise HTTPException(status_code=400, detail="Missing state cookie")
-            state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
-            platform = state_payload.get("platform", "unknown")
-            code_verifier = state_payload.get("code_verifier")
-            if not platform:
-                raise HTTPException(status_code=400, detail="Mismatch state parameter")
-            logger.debug("State verified for platform: %s", platform)
-
+            # Extract OAuth parameters and verify state
+            code, state, platform, code_verifier = await self._extract_oauth_params_and_verify_state(request)
+            if not code:
+                raise HTTPException(status_code=400, detail="No authorization code provided")
+            logger.debug(f"Extracted OAuth params - code: {bool(code)}, state: {bool(state)}, platform: {platform}")
             # Load provider config
-            try:
-                logger.debug("Loading provider config for platform: %s", platform)
-                config = config_loader(platform)
-                logger.debug("Successfully loaded config for platform: %s", platform)
-            except Exception as e:
-                logger.error("Failed to load config for platform %s: %s", 
-                            platform, str(e), exc_info=True)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid platform: {platform}"
-                )
+            config = config_loader(platform)
+            logger.debug(f"Loaded config for platform: {platform}")
 
             # Process the authorization code
-            if code:
-                try:
-                    logger.info("Exchanging authorization code for tokens")
-                    redirect_uri = str(request.url.replace(query=""))
-                    result = await exchange_callback(code, redirect_uri, config, code_verifier)
-                    
-                    # Log successful token exchange (without sensitive data)
-                    if isinstance(result, dict):
-                        log_result = {k: v for k, v in result.items() 
-                                    if k not in ['access_token', 'refresh_token', 'id_token']}
-                        logger.info("Successfully exchanged code for tokens. Result: %s", log_result)
-                    else:
-                        logger.info("Successfully exchanged code for tokens")
-                    
-                except HTTPException as he:
-                    logger.error("HTTP error during token exchange: %s (status_code=%d)", 
-                                str(he.detail), he.status_code, exc_info=True)
-                    raise
-                except Exception as e:
-                    logger.error("Unexpected error during token exchange: %s", 
-                                str(e), exc_info=True)
-                    raise HTTPException(
-                        status_code=500,
-                        detail="An error occurred during token exchange"
-                    )
+            redirect_uri = str(request.url.replace(query=""))
+            logger.info("Exchanging authorization code for tokens")
+            logger.debug(f"Using redirect_uri: {redirect_uri}")
+            logger.debug(f"Using code_verifier: {bool(code_verifier)}")
+            logger.debug(f"Using platform: {platform}")
+            logger.debug(f"Using config: {config.get('client_id') if config else 'N/A'}")
+            result = await exchange_callback(code, redirect_uri, config, code_verifier)
+            
+            # Log successful token exchange
+            logger.info("Successfully exchanged authorization code for tokens")
+            if isinstance(result, dict):
+                log_result = {k: v for k, v in result.items() 
+                            if k not in ['access_token', 'refresh_token', 'id_token']}
+                logger.debug("Token exchange result: %s", log_result)
 
             # Extract user info using the provider-specific extractor function
             try:
@@ -261,87 +269,142 @@ class OAuthProvider:
                 logger.error("Failed to extract user info: %s", str(e), exc_info=True)
                 user_info = {}
             
-            # Generate JWT token using the injected function or default
+            # Generate JWT token using the injected function
             if self.token_generator_func:
                 token = self.token_generator_func(user_info, platform, self.provider_name)
             else:
-                from .jwt_utils import generate_jwt_token
-                token = generate_jwt_token(user_info, platform, self.provider_name)
+                token = jwt_utils.generate_jwt_token(user_info, platform, self.provider_name)
 
             # Use the configured callback functions
-            if config.storage_callback:
-                config.storage_callback(user_info, platform, self.provider_name)
-            else:
-                # Fallback to imported function if no config callback
-                from ..auth_util import client_provided_storage_callback
-                client_provided_storage_callback(user_info, platform, self.provider_name)
+            if self.storage_func:
+                self.storage_func(user_info, platform, self.provider_name)
             
-            if config.client_info_extractor:
-                user_client_info = config.client_info_extractor(user_info, platform, self.provider_name)
+            if self.client_user_info_func:
+                user_client_info = self.client_user_info_func(user_info, platform, self.provider_name)
             else:
-                # Fallback to imported function if no config callback
-                from ..auth_util import extract_user_client_info
-                user_client_info = extract_user_client_info(user_info, platform, self.provider_name)
+                # No user info function configured - use minimal client info
+                user_client_info = {
+                    "success_html_title": "Authentication successful",
+                    "success_html_heading": "Authentication successful",
+                    "va-dir": "",
+                    "Name": ""
+                }
 
             
-            # Return success response with token in a secure HTTP-only cookie
-            response = self.templates.TemplateResponse(
-                "auth_result.html",
-                {
-                    "request": request,
-                    "success_html_title": user_client_info.get("success_html_title", "Authentication successful"),
-                    "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
-                    "token": token,
-                    "is_success": True,
-                    "va-dir": user_client_info.get("va-dir", ""),
-                    "Name" : user_client_info.get("Name", "")
-                }
-            )
+            # Prepare JSON data for response
+            json_data = {
+                "user_info": user_client_info,
+                "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "provider": getattr(self, 'provider_name', 'unknown'),
+                "token": token
+            }
             
-            # Set the JWT token in an HTTP-only cookie for additional security
+            # If platform is not web, return JSON response directly
+            if platform.lower() != "web":
+                response = JSONResponse({
+                    "success": True,
+                    "data": json_data
+                })
+            else:
+                # Return success response with token in a secure HTTP-only cookie (for web)
+                response = self.templates.TemplateResponse(
+                    "auth_result.html",
+                    {
+                        "request": request,
+                        "success_html_title": user_client_info.get("success_html_title", "Authentication successful"),
+                        "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
+                        "token": token,
+                        "is_success": True,
+                        "va-dir": user_client_info.get("va-dir", ""),
+                        "Name" : user_client_info.get("Name", ""),
+                        "json_data": json.dumps(json_data)
+                    }
+                )
+            
+            # Set the JWT token in an HTTP-only cookie for additional security (applies to all platforms)
             jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
             response.set_cookie(
                 key="auth_token",
                 value=token,
                 httponly=True,
-                secure=os.getenv('ENVIRONMENT') == 'production',  # Only send over HTTPS in production
+                secure=True,  # Only send over HTTPS in production
                 samesite='lax',  # Helps prevent CSRF attacks
-                max_age=jwt_expire_hours * 3600  # Match JWT expiration
+                max_age=jwt_expire_hours * 3600,  # Match JWT expiration
+                domain=None,  # Let browser use default (current domain)
+                path='/',  # Make cookie available across the entire site
             )
             
             return response
 
         except HTTPException as he:
             msg = str(he.detail)
-            response = self.templates.TemplateResponse(
-                "auth_result.html",
-                {
-                    "request": request,
-                    "success_html_title": "Authentication failed",
-                    "success_html_heading": "Authentication failed",
-                    "token": "",
-                    "is_success": False,
-                    "error_message": msg,
-                },
-                status_code=he.status_code,
-            )
+            
+            # Prepare JSON data for error response
+            json_data = {
+                "error": msg,
+                "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "provider": getattr(self, 'provider_name', 'unknown')
+            }
+            
+            # If platform is not web, return JSON response directly
+            if platform.lower() != "web":
+                response = JSONResponse({
+                    "success": False,
+                    "error": msg,
+                    "data": json_data
+                }, status_code=he.status_code)
+            else:
+                # Return HTML response for web platform
+                response = self.templates.TemplateResponse(
+                    "auth_result.html",
+                    {
+                        "request": request,
+                        "success_html_title": "Authentication failed",
+                        "success_html_heading": "Authentication failed",
+                        "token": "",
+                        "is_success": False,
+                        "error_message": msg,
+                        "json_data": json.dumps(json_data)
+                    },
+                    status_code=he.status_code,
+                )
+            
             return response
 
         except Exception as e:
             logger.critical("Unhandled exception in OAuth callback: %s", str(e), exc_info=True)
             msg = "An unexpected error occurred during authentication"
-            response = self.templates.TemplateResponse(
-                "auth_result.html",
-                {
-                    "request": request,
-                    "success_html_title": "Authentication failed",
-                    "success_html_heading": "Authentication failed",
-                    "token": "",
-                    "is_success": False,
-                    "error_message": msg,
-                },
-                status_code=500,
-            )
+            
+            # Prepare JSON data for error response
+            json_data = {
+                "error": msg,
+                "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                "provider": getattr(self, 'provider_name', 'unknown')
+            }
+            
+            # If platform is not web, return JSON response directly
+            if platform.lower() != "web":
+                response = JSONResponse({
+                    "success": False,
+                    "error": msg,
+                    "data": json_data
+                }, status_code=500)
+            else:
+                # Return HTML response for web platform
+                response = self.templates.TemplateResponse(
+                    "auth_result.html",
+                    {
+                        "request": request,
+                        "success_html_title": "Authentication failed",
+                        "success_html_heading": "Authentication failed",
+                        "token": "",
+                        "is_success": False,
+                        "error_message": msg,
+                        "json_data": json.dumps(json_data)
+                    },
+                    status_code=500,
+                )
+            
             return response
 
         finally:

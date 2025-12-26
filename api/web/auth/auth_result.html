@@ -63,16 +63,22 @@
         
         // Get token from template variable (server-side rendered)
         const token = "{{ token|e }}";
+        
+        // Parse JSON data from template
+        const jsonData = JSON.parse('{{ json_data|e }}');
+        console.log('Auth data:', jsonData);
 
         if (isSuccess) {
           window.opener.postMessage({
             type: 'AUTH_SUCCESS',
-            token: token
+            token: token,
+            data: jsonData
           }, window.location.origin);
         } else {
           window.opener.postMessage({
             type: 'AUTH_ERROR',
-            error: errorMessage
+            error: errorMessage,
+            data: jsonData
           }, window.location.origin);
         }
         

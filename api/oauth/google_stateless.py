@@ -25,19 +25,25 @@ def get_oauth_provider() -> OAuthProvider:
     """Get OAuth provider instance with token generator function from config."""
     global _OAUTH_PROVIDER
     if _OAUTH_PROVIDER is None:
-        # Try to get token generator from auth config
+        # Try to get functions from auth config
         try:
             from api.oauth.config import _auth_config
             token_generator_func = _auth_config.get_token_generator_func() if _auth_config else None
+            storage_func = _auth_config.get_storage_func() if _auth_config else None
+            user_info_func = _auth_config.get_user_info_func() if _auth_config else None
         except (ImportError, AttributeError):
             token_generator_func = None
+            storage_func = None
+            user_info_func = None
         
         _OAUTH_PROVIDER = OAuthProvider(
             provider_name="Google",
             state_cookie_name="g_oidc_state",
             state_secret=os.getenv("GOOGLE_STATE_SECRET_KEY", os.getenv("STATE_SECRET_KEY", "change-me-state-secret")),
             state_ttl_seconds=600,
-            token_generator_func=token_generator_func
+            token_generator_func=token_generator_func,
+            storage_func=storage_func,
+            user_info_func=user_info_func
         )
     return _OAUTH_PROVIDER
 

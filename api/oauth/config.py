@@ -184,6 +184,14 @@ class AuthConfigManager:
         """Get the token generator function."""
         return self.token_generator_func
     
+    def get_storage_func(self) -> Optional[Callable[[Dict[str, Any], str, str], None]]:
+        """Get the storage function."""
+        return self.storage_callback
+    
+    def get_user_info_func(self) -> Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]]:
+        """Get the user info function."""
+        return self.client_info_extractor
+    
     def get_all_configs(self) -> Dict[str, Dict[str, AuthConfig]]:
         """Get all loaded configurations."""
         return self._configs
