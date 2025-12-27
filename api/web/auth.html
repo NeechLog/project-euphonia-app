@@ -144,7 +144,10 @@
     <div id="messageBox" class="message-box"></div>
 
     <script type="module">
-        import { AuthManager } from '/web/auth/manager.js';
+        const absoluteMgrUrl = window.location.origin + '/web/auth/manager.js';
+        console.log('Attempting to import AuthManager from:', absoluteMgrUrl);
+        import { AuthManager } from absoluteMgrUrl;
+        console.log('Import successful');
 
         const loginGoogle = document.getElementById('loginGoogle');
         const loginApple = document.getElementById('loginApple');
