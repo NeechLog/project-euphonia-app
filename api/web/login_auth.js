@@ -98,7 +98,9 @@ function loadExternalScript(src, type = null) {
         if (type === 'module' && src.startsWith('/')) {
             try {
                 console.log(`Attempting dynamic import for module: ${src}`);
-                import(src).then(resolve).catch(reject);
+                // Convert relative path to absolute URL for dynamic import
+                const absoluteUrl = window.location.origin + src;
+                import(absoluteUrl).then(resolve).catch(reject);
                 return;
             } catch (e) {
                 console.warn(`Dynamic import failed for ${src}, falling back to script tag:`, e);
