@@ -146,65 +146,70 @@
     <script type="module">
         const absoluteMgrUrl = window.location.origin + '/web/auth/manager.js';
         console.log('Attempting to import AuthManager from:', absoluteMgrUrl);
-        import { AuthManager } from absoluteMgrUrl;
-        console.log('Import successful');
+        
+        import(absoluteMgrUrl).then(module => {
+            const { AuthManager } = module;
+            console.log('Import successful');
+            
+            const loginGoogle = document.getElementById('loginGoogle');
+            const loginApple = document.getElementById('loginApple');
+            const result = document.getElementById('result');
+            const loginMicrosoft = document.getElementById('loginMicrosoft');
+            const messageBox = document.getElementById('messageBox');
 
-        const loginGoogle = document.getElementById('loginGoogle');
-        const loginApple = document.getElementById('loginApple');
-        const result = document.getElementById('result');
-        const loginMicrosoft = document.getElementById('loginMicrosoft');
-        const messageBox = document.getElementById('messageBox');
+            // No need to instantiate AuthManager as all methods are static
 
-        // No need to instantiate AuthManager as all methods are static
-
-        // Show error message
-        function showError(message) {
-            messageBox.textContent = message;
-            messageBox.classList.add('show');
-            setTimeout(() => {
-                messageBox.classList.remove('show');
-            }, 5000);
-        }
-
-        // Handle URL errors
-        const urlParams = new URLSearchParams(window.location.search);
-        const error = urlParams.get('error');
-        if (error) {
-            showError(decodeURIComponent(error));
-            // Clean up the URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // Set loading state
-        function setLoading(button, isLoading) {
-            const buttonText = button.querySelector('span') || button;
-            button.disabled = isLoading;
-            button.classList.toggle('btn-loading', isLoading);
-            buttonText.textContent = isLoading ? 'Signing in...' : buttonText.textContent.replace('Signing in...', 'Continue with ' + button.id.replace('login', ''));
-        }
-
-        // Handle login
-        async function handleLogin(provider) {
-            const button = document.getElementById(`login${provider.charAt(0).toUpperCase() + provider.slice(1)}`);
-            try {
-                setLoading(button, true);
-                await AuthManager.startLogin(provider, 'web');
-            } catch (err) {
-                console.error('Login error:', err);
-                showError(err.message || 'Failed to sign in. Please try again.');
-                result.classList.remove('hidden');
-                result.textContent = String(err);
-            } finally {
-                setLoading(button, false);
+            // Show error message
+            function showError(message) {
+                messageBox.textContent = message;
+                messageBox.classList.add('show');
+                setTimeout(() => {
+                    messageBox.classList.remove('show');
+                }, 5000);
             }
-        }
 
-        // Event listeners
-        loginGoogle.addEventListener('click', () => handleLogin('google'));
-        loginApple.addEventListener('click', () => handleLogin('apple'));
-        if (loginMicrosoft) {
-            loginMicrosoft.addEventListener('click', () => handleLogin('microsoft'));
-        }
+            // Handle URL errors
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            if (error) {
+                showError(decodeURIComponent(error));
+                // Clean up the URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            // Set loading state
+            function setLoading(button, isLoading) {
+                const buttonText = button.querySelector('span') || button;
+                button.disabled = isLoading;
+                button.classList.toggle('btn-loading', isLoading);
+                buttonText.textContent = isLoading ? 'Signing in...' : buttonText.textContent.replace('Signing in...', 'Continue with ' + button.id.replace('login', ''));
+            }
+
+            // Handle login
+            async function handleLogin(provider) {
+                const button = document.getElementById(`login${provider.charAt(0).toUpperCase() + provider.slice(1)}`);
+                try {
+                    setLoading(button, true);
+                    await AuthManager.startLogin(provider, 'web');
+                } catch (err) {
+                    console.error('Login error:', err);
+                    showError(err.message || 'Failed to sign in. Please try again.');
+                    result.classList.remove('hidden');
+                    result.textContent = String(err);
+                } finally {
+                    setLoading(button, false);
+                }
+            }
+
+            // Event listeners
+            loginGoogle.addEventListener('click', () => handleLogin('google'));
+            loginApple.addEventListener('click', () => handleLogin('apple'));
+            if (loginMicrosoft) {
+                loginMicrosoft.addEventListener('click', () => handleLogin('microsoft'));
+            }
+        }).catch(error => {
+            console.error('Failed to import AuthManager:', error);
+        });
     </script>
 </body>
 </html>
