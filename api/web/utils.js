@@ -6,12 +6,12 @@ const VOICE_MODELS_CACHE_KEY = 'voiceModelsCache';
 const cache = {
     // Get item from cache if it exists and isn't expired
     get: (key) => {
-        const item = localStorage.getItem(key);
+        const item = sessionStorage.getItem(key);
         if (!item) return null;
         
         const { value, expiry } = JSON.parse(item);
         if (Date.now() > expiry) {
-            localStorage.removeItem(key);
+            sessionStorage.removeItem(key);
             return null;
         }
         return value;
@@ -23,12 +23,12 @@ const cache = {
             value,
             expiry: Date.now() + ttl
         };
-        localStorage.setItem(key, JSON.stringify(item));
+        sessionStorage.setItem(key, JSON.stringify(item));
     },
     
     // Remove item from cache
     remove: (key) => {
-        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
     }
 }
 

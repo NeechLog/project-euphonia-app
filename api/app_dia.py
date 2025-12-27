@@ -63,6 +63,7 @@ from pathlib import Path
 from oauth.google_stateless import router as google_auth_router
 from oauth.apple_stateless import router as apple_auth_router
 from oauth.routes import router as login_router
+from auth_util import auth_router,get_auth_context
 
 # Get the absolute path to the web directory
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
@@ -70,25 +71,12 @@ app.mount("/web", StaticFiles(directory=web_dir), name="web")
 app.include_router(google_auth_router)
 app.include_router(apple_auth_router)
 app.include_router(login_router)
+app.include_router(auth_router)
 for route in app.routes:
     logger.debug("Route is %s", route)
 #model = Dia.from_pretrained("nari-labs/Dia-1.6B", compute_dtype="float16")
 
-import oauth.jwt_utils as jwt_utils
-from fastapi import HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
-    try:
-        payload = jwt_utils.verify_jwt_token(token)
-        return payload
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+from fastapi import HTTPException
 
 @app.post('/process_audio')
 async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID)):
@@ -422,7 +410,7 @@ async def train_audio(
 
 
 @app.get('/get_voice_models')
-async def get_voice_models(bucket: str = None):
+async def get_voice_models(request: Request, bucket: str = None, auth_context: dict = Depends(get_auth_context)):
     """
     Endpoint to retrieve a list of all available voice models (hash identifiers) from the GCS bucket.
     
@@ -431,6 +419,15 @@ async def get_voice_models(bucket: str = None):
         Example: {"voice_models": ["model1", "model2", ...]}
     """
     try:
+        # Check if user is authenticated using the auth context
+        if not auth_context['authenticated']:
+            logger.info("No authorization token provided, returning default voice models")
+        
+        # Use va_dir from auth context for any user-specific logic
+        va_dir = auth_context['va_dir']
+        logger.info(f"Fetching voice models for va-dir: {va_dir}")
+        
+        # If token is present, proceed with authenticated flow
         # First try to get bucket name from request parameters, then from environment, then use default
         bucket_name = bucket or os.getenv('EUPHONIA_DIA_GCS_BUCKET', DEFAULT_BUCKET)
         logger.info(f"Fetching all voice models from bucket: {bucket_name}")

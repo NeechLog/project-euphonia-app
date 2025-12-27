@@ -41,6 +41,91 @@ function showLoggedOutState() {
     `;
 }
 
+// Function to dynamically load scripts from HTML
+async function loadScriptsFromHTML(htmlContent, container) {
+    // Create a temporary DOM element to parse the HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    
+    // Find all script tags
+    const scripts = tempDiv.querySelectorAll('script');
+    
+    // Load each script
+    for (const script of scripts) {
+        try {
+            if (script.src) {
+                // External script
+                if (!loadedScripts.has(script.src)) {
+                    await loadExternalScript(script.src, script.type);
+                    loadedScripts.add(script.src);
+                } else {
+                    console.log(`Script already loaded, skipping: ${script.src}`);
+                }
+            } else if (script.textContent) {
+                // Inline script - generate unique ID based on content
+                const scriptId = 'inline_' + btoa(script.textContent.substring(0, 100)).replace(/[^a-zA-Z0-9]/g, '');
+                if (!loadedScripts.has(scriptId)) {
+                    if (script.type === 'module') {
+                        // For module scripts, we need to create a blob URL
+                        const blob = new Blob([script.textContent], { type: 'application/javascript' });
+                        const moduleUrl = URL.createObjectURL(blob);
+                        await loadExternalScript(moduleUrl, 'module');
+                        URL.revokeObjectURL(moduleUrl);
+                    } else {
+                        // Regular inline script
+                        const newScript = document.createElement('script');
+                        newScript.textContent = script.textContent;
+                        if (script.type) newScript.type = script.type;
+                        container.appendChild(newScript);
+                    }
+                    loadedScripts.add(scriptId);
+                } else {
+                    console.log(`Inline script already loaded, skipping: ${scriptId}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading script:', error);
+        }
+    }
+}
+
+// Function to load external script
+function loadExternalScript(src, type = null) {
+    return new Promise((resolve, reject) => {
+        console.log(`Loading script: ${src} (type: ${type || 'default'})`);
+        
+        // For ES modules, try dynamic import first
+        if (type === 'module' && src.startsWith('/')) {
+            try {
+                console.log(`Attempting dynamic import for module: ${src}`);
+                import(src).then(resolve).catch(reject);
+                return;
+            } catch (e) {
+                console.warn(`Dynamic import failed for ${src}, falling back to script tag:`, e);
+                // Fallback to script tag if import fails
+            }
+        }
+        
+        const script = document.createElement('script');
+        script.src = src;
+        if (type) script.type = type;
+        
+        script.onload = () => {
+            console.log(`Successfully loaded script: ${src}`);
+            resolve();
+        };
+        script.onerror = (error) => {
+            console.error(`Failed to load script: ${src}`, error);
+            reject(error);
+        };
+        
+        document.head.appendChild(script);
+    });
+}
+
+// Track loaded scripts to avoid duplicates
+const loadedScripts = new Set();
+
 // Function to toggle login popup
 async function toggleLoginPopup() {
     const popup = document.getElementById('loginPopup');
@@ -49,9 +134,18 @@ async function toggleLoginPopup() {
         popup.classList.remove('show');
     } else {
         try {
-            const response = await fetch('/login');
-            const html = await response.text();
-            popup.innerHTML = html;
+            // Check if login content is already loaded
+            if (popup.innerHTML.trim() === '' || !popup.querySelector('button[id^="login"]')) {
+                const response = await fetch('/login');
+                const html = await response.text();
+                
+                // Set the HTML content
+                popup.innerHTML = html;
+                
+                // Load and execute scripts from the HTML
+                await loadScriptsFromHTML(html, popup);
+            }
+            
             popup.classList.add('show');
         } catch (error) {
             console.error('Error loading login form:', error);
@@ -130,11 +224,6 @@ window.addEventListener('message', function(event) {
         hideLoginPopup();
         // Refresh login state to update UI
         checkLoginState();
-        
-        // Store token if needed
-        if (token) {
-            localStorage.setItem('authToken', token);
-        }
     } else if (type === 'AUTH_ERROR') {
         console.error('Authentication failed:', error, data);
         showMessage(`Authentication failed: ${error || 'Unknown error'}`, 'error');

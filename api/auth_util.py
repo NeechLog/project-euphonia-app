@@ -3,6 +3,8 @@ import os
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from jose import jwt
+from fastapi import Cookie, HTTPException, status, Depends, APIRouter
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Cookie constants
 AUTH_COOKIE_KEY = "auth_token"
@@ -305,3 +307,115 @@ def delete_auth_cookies() -> Dict[str, Any]:
             "domain": None,
             "path": '/',
         }
+
+async def get_current_user_from_cookie(auth_token: str = Cookie(None, alias=AUTH_COOKIE_KEY)):
+    """
+    Extract user information from the auth_token cookie.
+    
+    Args:
+        auth_token: JWT token from the auth_token cookie
+        
+    Returns:
+        Dict[str, Any]: User information including name and va-dir
+        
+    Raises:
+        HTTPException: If token is missing or invalid
+    """
+    if not auth_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication token is missing"
+        )
+    
+    try:
+        payload = decode_jwt_token(auth_token)
+        return {
+            "Name": payload.get('Name', ''),
+            "va-dir": payload.get('va-dir', '')
+        }
+    except jwt.JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired authentication token"
+        )
+
+async def get_auth_context(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)), 
+                          auth_token: str = Cookie(None, alias=AUTH_COOKIE_KEY)):
+    """
+    Dependency to extract authentication context from bearer token or cookie.
+    
+    Returns:
+        Dict containing authentication information:
+        - authenticated: bool - whether user is authenticated
+        - va_dir: str - user's va-dir (DEFAULT_HASH_ID if not authenticated)
+        - credentials: HTTPAuthorizationCredentials - raw credentials (None if not authenticated)
+        - auth_source: str - 'bearer' or 'cookie' indicating auth method
+    """
+    # First try bearer token
+    if credentials:
+        try:
+            va_dir = get_va_dir_from_token(credentials.credentials)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Extracted va-dir from bearer token: {va_dir}")
+            
+            return {
+                'authenticated': True,
+                'va_dir': va_dir,
+                'credentials': credentials,
+                'auth_source': 'bearer'
+            }
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error extracting auth context from bearer: {str(e)}")
+    
+    # Fallback to cookie if bearer token failed or missing
+    if auth_token:
+        try:
+            va_dir = get_va_dir_from_token(auth_token)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Extracted va-dir from cookie: {va_dir}")
+            
+            return {
+                'authenticated': True,
+                'va_dir': va_dir,
+                'credentials': None,
+                'auth_source': 'cookie'
+            }
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error extracting auth context from cookie: {str(e)}")
+    
+    # No valid authentication found
+    return {
+        'authenticated': False,
+        'va_dir': 'default_user_123',  # DEFAULT_HASH_ID
+        'credentials': None,
+        'auth_source': 'none'
+    }
+
+# Create auth router for user endpoints
+auth_router = APIRouter(prefix="/user", tags=["user"])
+
+@auth_router.get('/current')
+async def get_current_user_info(current_user: dict = Depends(get_current_user_from_cookie)):
+    """
+    Endpoint to retrieve current user information from auth token cookie.
+    
+    Returns:
+        JSON response containing user name and va-dir
+        Example: {"Name": "John Doe", "va-dir": "google_12345"}
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Retrieving user info: {current_user}")
+        return current_user
+    except Exception as e:
+        error_msg = f"Error retrieving user info: {str(e)}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
