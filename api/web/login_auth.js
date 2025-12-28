@@ -10,8 +10,8 @@ async function checkLoginState() {
         const response = await fetch('/me');
         const data = await response.json();
         
-        if (data.loggedIn && data.user) {
-            showLoggedInState(data.user);
+        if (response.ok && data.authenticated) {
+            showLoggedInState(data);
         } else {
             showLoggedOutState();
         }
@@ -22,11 +22,15 @@ async function checkLoginState() {
 }
 
 // Function to show logged in state
-function showLoggedInState(user) {
+function showLoggedInState(userData) {
+    // Store authentication flag in session storage
+    sessionStorage.setItem('authenticated', 'true');
+    
     const authContainer = document.getElementById('authContainer');
     authContainer.innerHTML = `
         <div class="user-info">
-            <span>Hello <strong>${user.Name || 'User'}</strong></span>
+            <span>Hello <strong>${userData.name || 'User'}</strong></span>
+            <span class="va-dir">VA: ${userData['va-dir'] || 'N/A'}</span>
             <button class="login-btn logout-btn" onclick="handleLogout()">Logout</button>
         </div>
     `;

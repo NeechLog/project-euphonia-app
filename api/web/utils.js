@@ -113,8 +113,10 @@ async function loadVoiceModels(selectWidget) {
         console.log("Status on server List is "+ response_json.status);
         const models = response_json.voice_models;
         
-        // Cache the response
-        cache.set(VOICE_MODELS_CACHE_KEY, models);
+        // Cache the response only if user is authenticated
+        if (sessionStorage.getItem('authenticated') === 'true') {
+            cache.set(VOICE_MODELS_CACHE_KEY, models);
+        }
         
         // Update the UI
         updateVoiceModelSelect(models, selectWidget);

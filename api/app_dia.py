@@ -358,7 +358,8 @@ def generate_sound_wave(phrase):
 async def train_audio(
     audio: UploadFile = File(...),
     text: str = Form(...),
-    hash_id: str = Form(None)
+    hash_id: str = Form(None),
+    auth_context: dict = Depends(get_auth_context)
 ):
     """
     Endpoint to receive an audio file, text, and hash_id for training.
@@ -366,6 +367,8 @@ async def train_audio(
     Returns success/error response.
     """
     try:
+        if not auth_context['authenticated']:
+            raise HTTPException(status_code=401, detail='Unauthorized')
         # Check if required parts are present
         if not audio:
             raise HTTPException(status_code=400, detail='No audio file part in request')
@@ -373,14 +376,24 @@ async def train_audio(
         if not text:
              raise HTTPException(status_code=400, detail='Text is a required parameter')
 
-                
+        if auth_context['is_Admin']:
+            if not hash_id:
+                hash_id = DEFAULT_HASH_ID
+            elif hash_id != auth_context['va_dir']:
+                logger.info(f'Using provided hash_id: {hash_id} as user is admin but hash_id does not match va_dir')
+        else:
+            if not hash_id:
+                hash_id = auth_context['va_dir']
+            elif hash_id != auth_context['va_dir']:
+                logger.info(f'Not Using provided hash_id: {hash_id} as user is not admin and hash_id does not match va_dir')
+                hash_id = auth_context['va_dir']
+        if not hash_id:
+            raise HTTPException(status_code=400, detail='hash_id is a required parameter')        
+        
+        logger.info(f'Training audio file: {audio.filename} for hash_id: {hash_id}')        
         # Read audio file data
         audio_data = await audio.read()
-        # Use default hash_id if not provided
-        if not hash_id:
-            hash_id = DEFAULT_HASH_ID
-            logger.info(f'Using default hash_id: {hash_id}')
-        logger.info(f'Training audio file: {audio.filename} for hash_id: {hash_id}')
+
         # Upload to GCS
         try:
             bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
@@ -422,12 +435,16 @@ async def get_voice_models(request: Request, bucket: str = None, auth_context: d
         # Check if user is authenticated using the auth context
         if not auth_context['authenticated']:
             logger.info("No authorization token provided, returning default voice models")
+            return {'status': 'success', 'voice_models': [DEFAULT_HASH_ID]}
         
-        # Use va_dir from auth context for any user-specific logic
-        va_dir = auth_context['va_dir']
-        logger.info(f"Fetching voice models for va-dir: {va_dir}")
+        if not auth_context['is_Admin']:
+            va_dir = auth_context['va_dir']
+            if not va_dir:
+                logger.error("No va_dir provided, using default")
+                raise HTTPException(status_code=403, detail='could not get va_dir from auth context')
+            return {'status': 'success', 'voice_models': [va_dir]}
         
-        # If token is present, proceed with authenticated flow
+        # If token is present and use is admin, return folders.
         # First try to get bucket name from request parameters, then from environment, then use default
         bucket_name = bucket or os.getenv('EUPHONIA_DIA_GCS_BUCKET', DEFAULT_BUCKET)
         logger.info(f"Fetching all voice models from bucket: {bucket_name}")
