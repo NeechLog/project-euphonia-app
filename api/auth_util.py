@@ -19,6 +19,61 @@ JWT_EXPIRE_HOURS = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
 # Logger
 logger = logging.getLogger(__name__)
 
+async def get_auth_context(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)), 
+                          auth_token: str = Cookie(None, alias=AUTH_COOKIE_KEY)):
+    """
+    Dependency to extract authentication context from bearer token or cookie.
+    
+    Returns:
+        Dict containing authentication information:
+        - authenticated: bool - whether user is authenticated
+        - va_dir: str - user's va-dir (DEFAULT_HASH_ID if not authenticated)
+        - credentials: HTTPAuthorizationCredentials - raw credentials (None if not authenticated)
+        - auth_source: str - 'bearer' or 'cookie' indicating auth method
+    """
+    payload = None
+    try:
+        # First try bearer token
+        if credentials:
+            logger.debug(f"Bearer token found: {credentials.credentials}")
+            payload = decode_jwt_token(credentials.credentials)
+            auth_source = 'bearer'
+        if auth_token:
+            logger.debug(f"Cookie found: {auth_token}")
+            payload = decode_jwt_token(auth_token)
+            auth_source = 'cookie'
+
+        if payload:
+            logger.debug(f"Payload found: {payload}")
+            va_dir = payload.get('va-dir', '')
+            isAdmin = payload.get('isAdmin', False)
+            name = payload.get('name', '')
+            user_id = payload.get('user_id', '')
+
+            return {
+                'authenticated': True,
+                'va_dir': va_dir,
+                'credentials': credentials,
+                'auth_source': auth_source,
+                'is_Admin' : isAdmin,
+                'name' : name,
+                'user_id' : user_id
+            }
+    except Exception as e:
+            logger.error(f"Error extracting auth context from bearer: {str(e)}")
+
+    
+    # No valid authentication found
+    return {
+        'name' : '',
+        'authenticated': False,
+        'va_dir': 'default_user_123',  # DEFAULT_HASH_ID
+        'credentials': None,
+        'auth_source': 'none',
+        'is_Admin' : False,
+        'user_id' : ''
+    }
+
 # Create auth router for user endpoints
 auth_router = APIRouter(prefix="/user", tags=["user"])
 
@@ -309,60 +364,6 @@ def extract_user_client_info(user_info: Dict[str, Any], platform: str, provider_
             "Platform": platform,
             "User_ID": "",
         }
-
-async def get_auth_context(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)), 
-                          auth_token: str = Cookie(None, alias=AUTH_COOKIE_KEY)):
-    """
-    Dependency to extract authentication context from bearer token or cookie.
-    
-    Returns:
-        Dict containing authentication information:
-        - authenticated: bool - whether user is authenticated
-        - va_dir: str - user's va-dir (DEFAULT_HASH_ID if not authenticated)
-        - credentials: HTTPAuthorizationCredentials - raw credentials (None if not authenticated)
-        - auth_source: str - 'bearer' or 'cookie' indicating auth method
-    """
-    payload = None
-    try:
-        # First try bearer token
-        if credentials:
-            logger.debug(f"Bearer token found: {credentials.credentials}")
-            payload = decode_jwt_token(credentials.credentials)
-            auth_source = 'bearer'
-        if auth_token:
-            logger.debug(f"Cookie found: {auth_token}")
-            payload = decode_jwt_token(auth_token)
-            auth_source = 'cookie'
-
-        if payload:
-            logger.debug(f"Payload found: {payload}")
-            va_dir = payload.get('va-dir', '')
-            isAdmin = payload.get('isAdmin', False)
-            name = payload.get('name', '')
-            user_id = payload.get('user_id', '')
-
-            return {
-                'authenticated': True,
-                'va_dir': va_dir,
-                'credentials': credentials,
-                'auth_source': auth_source,
-                'is_Admin' : isAdmin,
-                'name' : name,
-                'user_id' : user_id
-            }
-    except Exception as e:
-            logger.error(f"Error extracting auth context from bearer: {str(e)}")
- 
-    # No valid authentication found
-    return {
-        'name' : '',
-        'authenticated': False,
-        'va_dir': 'default_user_123',  # DEFAULT_HASH_ID
-        'credentials': None,
-        'auth_source': 'none',
-        'is_Admin' : False,
-        'user_id' : ''
-    }
 
 def client_provided_storage_callback(user_info: Dict[str, Any], platform: str, provider_name: str) -> None:
     """
