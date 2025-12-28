@@ -88,14 +88,11 @@ async def get_current_user_info(auth_context: dict = Depends(get_auth_context)):
     """
     try:
         if not auth_context['authenticated']:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not authenticated"
-            )
+            return {"authenticated": False}
         
         user_info = {
             "authenticated": auth_context['authenticated'],
-            "Name": auth_context['name']    ,
+            "name": auth_context['name']    ,
             "va-dir": auth_context['va_dir'],
             "auth_source": auth_context['auth_source']
         }
