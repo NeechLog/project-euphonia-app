@@ -265,7 +265,7 @@ def getVaDir(user_id: str, email: str, provider: str) -> str:
     Returns:
         str: VA directory identifier in format 'provider_id'
     """
-    email_suffix = hash(email.replace('@', '_'))[:10] if email else hash(user_id)[:10]
+    email_suffix = str(hash(email.replace('@', '_')))[:10] if email else str(hash(user_id))[:10]
     return f"{provider}_{user_id}_{email_suffix}"
 
 def is_user_admin_from_token(token: str) -> bool:
