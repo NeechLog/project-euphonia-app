@@ -33,8 +33,7 @@
         /* Square layout on large screens */
         @media (min-width: 768px) {
             .container {
-                aspect-ratio: 1;
-                max-width: min(420px, 90vh);
+                max-width: 420px;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
@@ -214,7 +213,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="text-center mb-8 flex-shrink-0">
+        <div class="text-center mb-8">
             <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
             <p class="text-gray-600 text-sm md:text-base">Sign in to continue to Voice Assist</p>
         </div>
@@ -222,7 +221,7 @@
         <!-- Hidden input for return URL -->
         <input type="hidden" id="returnUrl" value="{{ return_url if return_url else '/' }}">
         
-        <div class="space-y-3 flex-shrink-0">
+        <div class="space-y-3">
             <button id="loginGoogle" class="btn btn-google">
                 <img src="/web/icons/google-icon.svg" alt="Google" class="logo">
                 <span>Continue with Google</span>
@@ -241,7 +240,7 @@
             </button>
         </div>
         
-        <div id="result" class="mt-6 text-sm text-gray-600 text-center hidden flex-grow"></div>
+        <div id="result" class="mt-6 text-sm text-gray-600 text-center hidden"></div>
     </div>
 
     <div id="messageBox" class="message-box"></div>

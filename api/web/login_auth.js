@@ -30,7 +30,6 @@ function showLoggedInState(userData) {
     authContainer.innerHTML = `
         <div class="user-info">
             <span>Hello <strong>${userData.name || 'User'}</strong></span>
-            <span class="va-dir">VA: ${userData['va-dir'] || 'N/A'}</span>
             <button class="login-btn logout-btn" onclick="handleLogout()">Logout</button>
         </div>
     `;
