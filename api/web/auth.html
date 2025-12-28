@@ -9,7 +9,7 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             margin: 0;
             padding: 1rem;
             min-height: 100vh;
@@ -17,20 +17,62 @@
             align-items: center;
             justify-content: center;
         }
+        
         .container {
             background-color: white;
             padding: 2.5rem;
-            border-radius: 0.75rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 1rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
             width: 100%;
             max-width: 420px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Square layout on large screens */
+        @media (min-width: 768px) {
+            .container {
+                aspect-ratio: 1;
+                max-width: min(420px, 90vh);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+            }
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 767px) {
+            body {
+                padding: 0.5rem;
+            }
+            .container {
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+                margin: 0.5rem;
+            }
+        }
+        
+        /* Tablet optimizations */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .container {
+                max-width: 380px;
+                padding: 2rem;
+            }
+        }
+        
+        /* Large screen optimizations */
+        @media (min-width: 1024px) {
+            .container {
+                max-width: 450px;
+                padding: 3rem;
+            }
         }
         .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            border-radius: 0.75rem;
             font-weight: 600;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             cursor: pointer;
             border: none;
             display: flex;
@@ -38,8 +80,34 @@
             justify-content: center;
             gap: 0.75rem;
             width: 100%;
-            margin-bottom: 0.75rem;
+            margin-bottom: 0.875rem;
             font-size: 0.95rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        /* Responsive button sizing */
+        @media (max-width: 767px) {
+            .btn {
+                padding: 0.75rem 1.25rem;
+                font-size: 0.9rem;
+                margin-bottom: 0.75rem;
+            }
         }
         .btn-google {
             background-color: #4285F4;
@@ -71,17 +139,28 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: #ef4444;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
-            padding: 0.75rem 1.25rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 0.75rem;
+            box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.3);
             z-index: 1000;
             opacity: 0;
-            transition: opacity 0.3s ease-in-out;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.875rem;
             max-width: 90%;
             text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        /* Responsive message box */
+        @media (max-width: 767px) {
+            .message-box {
+                top: 10px;
+                padding: 0.75rem 1rem;
+                font-size: 0.8rem;
+                max-width: 95%;
+            }
         }
         .message-box.show {
             opacity: 1;
@@ -109,15 +188,38 @@
         .logo {
             width: 24px;
             height: 24px;
+            transition: transform 0.2s ease;
+        }
+        
+        .btn:hover .logo {
+            transform: scale(1.1);
+        }
+        
+        /* Responsive logo sizing */
+        @media (max-width: 767px) {
+            .logo {
+                width: 20px;
+                height: 20px;
+            }
+        }
+        
+        @media (min-width: 1024px) {
+            .logo {
+                width: 28px;
+                height: 28px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="text-center mb-8">
-            <h1 class="text-2xl font-bold text-gray-900 mb-2">Welcome Back</h1>
-            <p class="text-gray-600">Sign in to continue to Voice Assist</p>
+            <h1 class="text-2xl md:text-3xl font-bold text-gray-900 mb-2">Welcome Back</h1>
+            <p class="text-gray-600 text-sm md:text-base">Sign in to continue to Voice Assist</p>
         </div>
+        
+        <!-- Hidden input for return URL -->
+        <input type="hidden" id="returnUrl" value="{{ return_url if return_url else '/' }}">
         
         <div class="space-y-3">
             <button id="loginGoogle" class="btn btn-google">
@@ -171,6 +273,7 @@
             // Handle URL errors
             const urlParams = new URLSearchParams(window.location.search);
             const error = urlParams.get('error');
+            
             if (error) {
                 showError(decodeURIComponent(error));
                 // Clean up the URL
@@ -190,7 +293,8 @@
                 const button = document.getElementById(`login${provider.charAt(0).toUpperCase() + provider.slice(1)}`);
                 try {
                     setLoading(button, true);
-                    await AuthManager.startLogin(provider, 'web');
+                    const returnUrl = document.getElementById('returnUrl').value;
+                    await AuthManager.startLogin(provider, 'web', { return_url: returnUrl });
                 } catch (err) {
                     console.error('Login error:', err);
                     showError(err.message || 'Failed to sign in. Please try again.');

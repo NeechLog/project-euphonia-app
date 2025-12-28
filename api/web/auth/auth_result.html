@@ -8,84 +8,198 @@
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
         text-align: center;
         margin: 0;
-        padding: 2rem;
+        padding: 1rem;
         display: flex;
         justify-content: center;
         align-items: center;
         min-height: 100vh;
-        background-color: #f5f5f5;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       }
+      
       .container {
         background: white;
         padding: 2rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        border-radius: 1rem;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         max-width: 500px;
         width: 100%;
+        position: relative;
+        overflow: hidden;
+      }
+      
+      /* Square layout on large screens */
+      @media (min-width: 768px) {
+        .container {
+          aspect-ratio: 1;
+          max-width: min(500px, 90vh);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+      }
+      
+      /* Mobile optimizations */
+      @media (max-width: 767px) {
+        body {
+          padding: 0.5rem;
+        }
+        .container {
+          padding: 1.5rem;
+          border-radius: 0.75rem;
+          margin: 0.5rem;
+        }
+      }
+      
+      /* Tablet optimizations */
+      @media (min-width: 768px) and (max-width: 1023px) {
+        .container {
+          max-width: 450px;
+          padding: 2.5rem;
+        }
+      }
+      
+      /* Large screen optimizations */
+      @media (min-width: 1024px) {
+        .container {
+          max-width: 550px;
+          padding: 3rem;
+        }
       }
       h1 {
         color: #333;
         margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+        font-weight: 600;
       }
+      
       p {
         color: #666;
         margin-bottom: 2rem;
-        line-height: 1.5;
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+      
+      /* Responsive typography */
+      @media (max-width: 767px) {
+        h1 {
+          font-size: 1.25rem;
+          margin-bottom: 1rem;
+        }
+        p {
+          font-size: 0.875rem;
+          margin-bottom: 1.5rem;
+        }
+      }
+      
+      @media (min-width: 1024px) {
+        h1 {
+          font-size: 1.75rem;
+        }
+        p {
+          font-size: 1rem;
+        }
       }
       .success-icon {
         font-size: 4rem;
         color: #10B981;
         margin-bottom: 1.5rem;
+        animation: successPulse 2s ease-in-out infinite;
       }
+      
       .error-icon {
         font-size: 4rem;
         color: #EF4444;
         margin-bottom: 1.5rem;
+        animation: errorShake 0.5s ease-in-out;
+      }
+      
+      @keyframes successPulse {
+        0%, 100% {
+          transform: scale(1);
+          opacity: 1;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 0.8;
+        }
+      }
+      
+      @keyframes errorShake {
+        0%, 100% {
+          transform: translateX(0);
+        }
+        25% {
+          transform: translateX(-5px);
+        }
+        75% {
+          transform: translateX(5px);
+        }
+      }
+      
+      /* Responsive icon sizing */
+      @media (max-width: 767px) {
+        .success-icon,
+        .error-icon {
+          font-size: 3rem;
+          margin-bottom: 1rem;
+        }
+      }
+      
+      @media (min-width: 1024px) {
+        .success-icon,
+        .error-icon {
+          font-size: 5rem;
+          margin-bottom: 2rem;
+        }
       }
       .token-info {
-        background: #f8f9fa;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
         padding: 1rem;
-        border-radius: 4px;
+        border-radius: 0.5rem;
         margin-top: 1.5rem;
         word-break: break-all;
-        font-family: monospace;
+        font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
         font-size: 0.8rem;
         text-align: left;
         display: none;
+        border: 1px solid #dee2e6;
+      }
+      
+      /* Responsive token info */
+      @media (max-width: 767px) {
+        .token-info {
+          font-size: 0.7rem;
+          padding: 0.75rem;
+        }
       }
     </style>
     <script>
-      // Send the token to the parent window and close the popup
+      // Handle authentication result and redirect to return URL
       window.onload = function() {
         const container = document.getElementById('authResult');
         const isSuccess = (container && container.dataset && container.dataset.success) === '1';
         const errorMessage = (container && container.dataset && container.dataset.error) || '';
         
-        // Get token from template variable (server-side rendered)
-        const token = "{{ token|e }}";
+        // Get return URL from template variable (server-side rendered)
+        const returnUrl = "{{ return_url|e if return_url else '/' }}";
         
         // Parse JSON data from template
         const jsonData = JSON.parse('{{ json_data|safe }}');
         console.log('Auth data:', jsonData);
 
         if (isSuccess) {
-          window.opener.postMessage({
-            type: 'AUTH_SUCCESS',
-            token: token,
-            data: jsonData
-          }, window.location.origin);
+          console.log('Authentication successful, redirecting to:', returnUrl);
+          // Redirect to return URL after successful authentication
+          setTimeout(function() {
+            window.location.href = returnUrl;
+          }, 1500);
         } else {
-          window.opener.postMessage({
-            type: 'AUTH_ERROR',
-            error: errorMessage,
-            data: jsonData
-          }, window.location.origin);
+          console.log('Authentication failed:', errorMessage);
+          // For errors, still redirect but after a longer delay to show the error
+          setTimeout(function() {
+            window.location.href = returnUrl;
+          }, 3000);
         }
-        
-        // Close the popup after a short delay
-        setTimeout(function() {
-          window.close();
-        }, 1000);
       };
     </script>
   </head>
@@ -99,7 +213,7 @@
       {% if is_success %}
       <div class="success-icon">✓</div>
       <h1>{{ success_html_heading }}</h1>
-      <p>You have successfully authenticated. This window will close automatically.</p>
+      <p>You have successfully authenticated. Redirecting you back...</p>
       {% else %}
       <div class="error-icon">✕</div>
       <h1>Authentication failed</h1>

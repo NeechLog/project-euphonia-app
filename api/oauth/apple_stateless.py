@@ -276,6 +276,7 @@ async def issue_state_post(request: Request):
     body = await request.json()
     platform = _normalize_platform(body.get("platform"))
     code_verifier = body.get("code_verifier")
+    return_url = body.get("return_url")
     if not platform:
         raise HTTPException(status_code=400, detail="Missing required parameter: platform")
 
@@ -284,6 +285,8 @@ async def issue_state_post(request: Request):
     extra_state_data = {}
     if code_verifier:
         extra_state_data["code_verifier"] = code_verifier
+    if return_url:
+        extra_state_data["return_url"] = return_url
 
     state_data = get_oauth_provider().create_state_response(request, platform, extra_state_data=extra_state_data)
     resp = JSONResponse({

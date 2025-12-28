@@ -29,7 +29,7 @@ oauth.register(
 )
 
 @router.get("/login", response_class=HTMLResponse)
-async def login(request: Request, redirect_uri: Optional[str] = None):
+async def login(request: Request, redirect_uri: Optional[str] = None, return_url: Optional[str] = None):
     """
     Serve the login page or initiate OAuth flow based on the request.
     """
@@ -38,8 +38,11 @@ async def login(request: Request, redirect_uri: Optional[str] = None):
         redirect_uri = request.url_for("auth_callback")
         return await oauth.oidc.authorize_redirect(request, redirect_uri)
     
-    # For browser requests, serve the auth.html page
-    return templates.TemplateResponse("auth.html", {"request": request})
+    # For browser requests, serve the auth.html page with return_url
+    return templates.TemplateResponse("auth.html", {
+        "request": request,
+        "return_url": return_url or "/"
+    })
 
 @router.get("/logout")
 async def logout(request: Request):

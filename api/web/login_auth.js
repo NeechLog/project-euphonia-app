@@ -37,7 +37,7 @@ function showLoggedInState(user) {
 function showLoggedOutState() {
     const authContainer = document.getElementById('authContainer');
     authContainer.innerHTML = `
-        <button class="login-btn" onclick="toggleLoginPopup()">Login</button>
+        <button class="login-btn" onclick="handleLoginRedirect()">Login</button>
     `;
 }
 
@@ -128,33 +128,10 @@ function loadExternalScript(src, type = null) {
 // Track loaded scripts to avoid duplicates
 const loadedScripts = new Set();
 
-// Function to toggle login popup
-async function toggleLoginPopup() {
-    const popup = document.getElementById('loginPopup');
-    
-    if (popup.classList.contains('show')) {
-        popup.classList.remove('show');
-    } else {
-        try {
-            // Check if login content is already loaded
-            if (popup.innerHTML.trim() === '' || !popup.querySelector('button[id^="login"]')) {
-                const response = await fetch('/login');
-                const html = await response.text();
-                
-                // Set the HTML content
-                popup.innerHTML = html;
-                
-                // Load and execute scripts from the HTML
-                await loadScriptsFromHTML(html, popup);
-            }
-            
-            popup.classList.add('show');
-        } catch (error) {
-            console.error('Error loading login form:', error);
-            popup.innerHTML = '<div class="login-form"><h3 class="text-lg font-semibold mb-3">Login</h3><p>Error loading login form. Please try again later.</p></div>';
-            popup.classList.add('show');
-        }
-    }
+// Function to handle login redirect
+function handleLoginRedirect() {
+    const currentUrl = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login?return_url=${currentUrl}`;
 }
 
 // Function to handle logout

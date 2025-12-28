@@ -131,7 +131,7 @@ class OAuthProvider:
         
         state = secrets.token_urlsafe(32)
         
-        # Add extra state data if provided
+        # Add extra state data if provided - this includes return_url and other parameters
         state_data = {"state": state, "platform": platform}
         if extra_state_data:
             logger.debug("Adding extra state data: %s", extra_state_data)
@@ -241,6 +241,12 @@ class OAuthProvider:
             if not code:
                 raise HTTPException(status_code=400, detail="No authorization code provided")
             logger.debug(f"Extracted OAuth params - code: {bool(code)}, state: {bool(state)}, platform: {platform}")
+            
+            # Extract return_url from state payload
+            state_cookie_value = request.cookies.get(self.state_cookie_name)
+            state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
+            return_url = state_payload.get("return_url", "/")
+            
             # Load provider config
             config = config_loader(platform)
             logger.debug(f"Loaded config for platform: {platform}")
@@ -319,6 +325,7 @@ class OAuthProvider:
                         "is_success": True,
                         "va-dir": user_client_info.get("va-dir", ""),
                         "Name" : user_client_info.get("Name", ""),
+                        "return_url": return_url,
                         "json_data": json.dumps(json_data)
                     }
                 )
@@ -346,6 +353,16 @@ class OAuthProvider:
         except HTTPException as he:
             msg = str(he.detail)
             
+            # Extract return_url from state payload for error case
+            state_cookie_value = request.cookies.get(self.state_cookie_name)
+            return_url = "/"
+            if state_cookie_value:
+                try:
+                    state_payload = self._decode_state_cookie(state_cookie_value)
+                    return_url = state_payload.get("return_url", "/")
+                except Exception:
+                    logger.debug("Could not extract return_url from state cookie in error case")
+            
             # Prepare JSON data for error response
             json_data = {
                 "error": msg,
@@ -371,6 +388,7 @@ class OAuthProvider:
                         "token": "",
                         "is_success": False,
                         "error_message": msg,
+                        "return_url": return_url,
                         "json_data": json.dumps(json_data)
                     },
                     status_code=he.status_code,
@@ -381,6 +399,16 @@ class OAuthProvider:
         except Exception as e:
             logger.critical("Unhandled exception in OAuth callback: %s", str(e), exc_info=True)
             msg = "An unexpected error occurred during authentication"
+            
+            # Extract return_url from state payload for error case
+            state_cookie_value = request.cookies.get(self.state_cookie_name)
+            return_url = "/"
+            if state_cookie_value:
+                try:
+                    state_payload = self._decode_state_cookie(state_cookie_value)
+                    return_url = state_payload.get("return_url", "/")
+                except Exception:
+                    logger.debug("Could not extract return_url from state cookie in error case")
             
             # Prepare JSON data for error response
             json_data = {
@@ -407,6 +435,7 @@ class OAuthProvider:
                         "token": "",
                         "is_success": False,
                         "error_message": msg,
+                        "return_url": return_url,
                         "json_data": json.dumps(json_data)
                     },
                     status_code=500,

@@ -28,7 +28,7 @@ export class AuthManager {
     return this.base64UrlEncode(new Uint8Array(digest));
   }
 
-  static async startLogin(provider, platform) {
+  static async startLogin(provider, platform, extraParams = {}) {
     try {
       // Get configuration from server
       const config = await this.getConfig(provider, platform);
@@ -37,7 +37,7 @@ export class AuthManager {
       // Generate state and get auth URL
       const codeVerifier = await this.generateCodeVerifier();
       const codeChallenge = await this.generateCodeChallenge(codeVerifier);
-      const state = await this.generateState(provider, platform, codeVerifier);
+      const state = await this.generateState(provider, platform, codeVerifier, extraParams);
       const { url } = await oauthProvider.startLogin(state, codeChallenge, 'S256');
 
       // Redirect to provider
@@ -54,7 +54,7 @@ export class AuthManager {
     sessionStorage.removeItem(STORAGE_KEYS.STATE);
   }
 
-  static async generateState(provider, platform, codeVerifier) {
+  static async generateState(provider, platform, codeVerifier, extraParams = {}) {
     try {
       const response = await fetch(`/auth/${provider}/state`, {
         method: 'POST',
@@ -64,6 +64,7 @@ export class AuthManager {
         body: JSON.stringify({
           platform,
           code_verifier: codeVerifier,
+          ...extraParams
         })
       });
       if (!response.ok) {
