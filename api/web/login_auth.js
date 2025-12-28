@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // Function to check current login state
 async function checkLoginState() {
     try {
-        const response = await fetch('/user/current');
+        const response = await fetch('/me');
         const data = await response.json();
         
         if (data.loggedIn && data.user) {
