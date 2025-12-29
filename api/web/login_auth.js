@@ -143,13 +143,18 @@ async function handleLogout() {
         // Call logout endpoint
         const response = await fetch('/logout', {
             method: 'POST',
-            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         });
         
         if (response.ok) {
+            const data = await response.json();
+            
+            // Extract redirect URL from response, fallback to "/"
+            const redirectUrl = data.redirect || "/";
+            
             // Clear local storage
             localStorage.clear();
             
@@ -160,10 +165,12 @@ async function handleLogout() {
             
             // Clear session storage
             sessionStorage.clear();
-            
+                        
             // Update UI to logged out state
             showLoggedOutState();
             showMessage('Logged out successfully', 'info');
+            // Redirect to the URL from server response or fallback to "/"
+            window.location.href = redirectUrl;
         } else {
             console.error('Logout failed');
             showMessage('Logout failed. Please try again.', 'error');

@@ -15,8 +15,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "web"))
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.get("/login")
-@router.post("/login")
+@router.api_route("/login", methods=["GET", "POST"])
 async def login(request: Request, redirect_uri: Optional[str] = None, return_url: Optional[str] = None):
     """
     Serve the login page or initiate OAuth flow based on the request.
@@ -34,25 +33,26 @@ async def login(request: Request, redirect_uri: Optional[str] = None, return_url
         "return_url": return_url or "/"
     })
 
-@router.get("/logout")
-@router.post("/logout")
+@router.api_route("/logout", methods=["GET", "POST"])
 async def logout(request: Request):
     """
     Logout the current user by clearing the session and authentication cookies.
     """
     # Create response
-    response = RedirectResponse(url="/")
-    
-    from api.oauth.config import _auth_config
+    if "application/json" in request.headers.get("accept", ""):
+        response = JSONResponse({"message": "Logged out successfully", "redirect": "/"})
+    else:
+        response = RedirectResponse(url="/")
+        
+        from api.oauth.config import _auth_config
+        # Get the cookie remover function
+        cookie_remover = _auth_config.get_cookie_remover_func()
 
-    # Get the cookie remover function
-    cookie_remover = _auth_config.get_cookie_remover_func()
-
-    # Use it to delete cookies
-    if cookie_remover:
-        cookie_config = cookie_remover()
-        response.set_cookie(**cookie_config)
-    
-    # Clear the access token cookie
-    response.delete_cookie('access_token', path="/")
-    return response
+        # Use it to delete cookies
+        if cookie_remover:
+            cookie_config = cookie_remover()
+            response.set_cookie(**cookie_config)
+        
+        # Clear the access token cookie
+        response.delete_cookie('access_token', path="/")
+        return response
