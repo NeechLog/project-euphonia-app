@@ -15,15 +15,17 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "web"))
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.get("/login", response_class=HTMLResponse)
+@router.get("/login", methods=["GET", "POST", "DELETE"])
 async def login(request: Request, redirect_uri: Optional[str] = None, return_url: Optional[str] = None):
     """
     Serve the login page or initiate OAuth flow based on the request.
     """
     # For AJAX/API requests, return the OAuth redirect
     if "application/json" in request.headers.get("accept", ""):
-        redirect_uri = request.url_for("auth_callback")
-        return await oauth.oidc.authorize_redirect(request, redirect_uri)
+        # Redirect to Google OAuth config endpoint
+        return JSONResponse({
+            "message": "Use Google/Apple/MS OAuth",
+        })
     
     # For browser requests, serve the auth.html page with return_url
     return templates.TemplateResponse("auth.html", {
@@ -32,12 +34,14 @@ async def login(request: Request, redirect_uri: Optional[str] = None, return_url
     })
 
 @router.get("/logout")
+@router.post("/logout")
+@router.delete("/logout")
 async def logout(request: Request):
     """
     Logout the current user by clearing the session and authentication cookies.
     """
     # Create response
-    response = RedirectResponse(url="/auth/login")
+    response = RedirectResponse(url="/")
     
     from api.oauth.config import _auth_config
 
