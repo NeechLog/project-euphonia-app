@@ -44,15 +44,15 @@ async def logout(request: Request):
     else:
         response = RedirectResponse(url="/")
         
-        from api.oauth.config import _auth_config
-        # Get the cookie remover function
-        cookie_remover = _auth_config.get_cookie_remover_func()
+    from api.oauth.config import _auth_config
+    # Get the cookie remover function
+    cookie_remover = _auth_config.get_cookie_remover_func()
 
-        # Use it to delete cookies
-        if cookie_remover:
-            cookie_config = cookie_remover()
-            response.set_cookie(**cookie_config)
-        
-        # Clear the access token cookie
-        response.delete_cookie('access_token', path="/")
-        return response
+    # Use it to delete cookies
+    if cookie_remover:
+        cookie_config = cookie_remover()
+        response.set_cookie(**cookie_config)
+    
+    # Clear the access token cookie
+    response.delete_cookie('access_token', path="/")
+    return response
