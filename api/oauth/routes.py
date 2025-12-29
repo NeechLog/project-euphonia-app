@@ -15,7 +15,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "web"))
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-@router.get("/login", methods=["GET", "POST", "DELETE"])
+@router.get("/login")
+@router.post("/login")
 async def login(request: Request, redirect_uri: Optional[str] = None, return_url: Optional[str] = None):
     """
     Serve the login page or initiate OAuth flow based on the request.
@@ -35,7 +36,6 @@ async def login(request: Request, redirect_uri: Optional[str] = None, return_url
 
 @router.get("/logout")
 @router.post("/logout")
-@router.delete("/logout")
 async def logout(request: Request):
     """
     Logout the current user by clearing the session and authentication cookies.
