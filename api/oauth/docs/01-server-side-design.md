@@ -58,6 +58,7 @@ classDiagram
     }
 
     class GoogleStateless {
+        <<module>>
         +router APIRouter
         +get_oauth_provider() OAuthProvider
         +get_platform_config(platform, include_secrets) Dict
@@ -68,6 +69,7 @@ classDiagram
     }
 
     class AppleStateless {
+        <<module>>
         +router APIRouter
         +get_oauth_provider() OAuthProvider
         +get_platform_client_config(platform, include_secrets) Dict
@@ -78,8 +80,8 @@ classDiagram
     }
 
     AuthConfigManager --> AuthConfig : manages
-    OAuthProvider <|-- GoogleStateless : uses
-    OAuthProvider <|-- AppleStateless : uses
+    GoogleStateless --> OAuthProvider : uses
+    AppleStateless --> OAuthProvider : uses
     GoogleStateless --> AuthConfigManager : reads config
     AppleStateless --> AuthConfigManager : reads config
 ```
@@ -341,6 +343,8 @@ The default JWT token generator creates application session tokens:
     "sub": "user-id",
     "email": "user@example.com",
     "name": "User Name",
+    "isAdmin": false,
+    "va-dir": "google_123_abc",
     "platform": "web",
     "provider": "google",
     "iat": 1704200000,

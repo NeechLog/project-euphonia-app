@@ -22,11 +22,11 @@ flowchart TB
         IC -.->|Injects| UserInfo
         IC -.->|Injects| Storage
         
-        Routes[routes.py] --> Login[/auth/login]
-        Routes --> Logout[/auth/logout]
+        Routes[routes.py] --> Login["/login"]
+        Routes --> Logout["/logout"]
         
-        GP --> Callback1[/auth/google/callback]
-        AP --> Callback2[/auth/apple/callback]
+        GP --> Callback1["/auth/google/callback"]
+        AP --> Callback2["/auth/apple/callback"]
     end
     
     subgraph Client ["Client Layer"]
@@ -459,7 +459,7 @@ sequenceDiagram
     Server->>Server: Generate deletion cookie config
     
     Server-->>Client: JSON { message, redirect: "/" }
-    Note over Server,Client: Set-Cookie: auth_token=; max-age=0
+    Note over Server,Client: Set-Cookie: auth_token=#59; max-age=0
     
     Client->>Client: Clear localStorage
     Client->>Client: Clear sessionStorage
