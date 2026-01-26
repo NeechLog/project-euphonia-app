@@ -1,4 +1,5 @@
 import os
+import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, Optional, Any, Type, TypeVar, Generic, TypedDict, List, Callable
@@ -85,18 +86,28 @@ class AuthConfigManager:
     
     def _parse_config_filename(self, filename: str) -> tuple[str, str]:
         """Parse provider and platform from filename (e.g., google_web.env -> (google, web))."""
-        if not (filename.endswith('.env') or filename.endswith('.env.example')):
+        filename_lower = filename.lower()
+        if not (filename_lower.endswith('.env') or filename_lower.endswith('.env.example')):
             return None, None
             
-        base_name = Path(filename).stem
-        if base_name.endswith('.example'):
-            base_name = base_name[:-8]  # Remove .example
+        # Remove extensions manually to handle .env.example correctly
+        base_name = filename
+        if filename_lower.endswith('.env.example'):
+            base_name = base_name[:-12]  # Remove .env.example
+        elif filename_lower.endswith('.env'):
+            base_name = base_name[:-4]   # Remove .env
             
-        parts = base_name.split('_')
+        parts = base_name.split('_', 1)
         if len(parts) != 2:
             return None, None
             
-        return parts[0].lower(), parts[1].lower()
+        provider, platform = parts[0].lower(), parts[1].lower()
+        
+        # Validate that both provider and platform are non-empty
+        if not provider or not platform:
+            return None, None
+            
+        return provider, platform
     
     def _load_all_configs(self):
         """Load all configuration files from the config directory."""
@@ -277,3 +288,71 @@ def reload_auth_config() -> None:
         logging.info("AuthConfig reloaded successfully")
     else:
         logging.warning("Cannot reload AuthConfig: not initialized")
+
+
+def main():
+    """Main function for debugging and testing the AuthConfigManager."""
+    # Set up logging for debug session
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    
+    # Handle AUTH_CONFIG_DIR parameter
+    if len(sys.argv) > 1:
+        auth_config_dir = sys.argv[1]
+        print(f"Setting AUTH_CONFIG_DIR to: {auth_config_dir}")
+        os.environ["AUTH_CONFIG_DIR"] = auth_config_dir
+    else:
+        # Use default if not provided
+        project_root = Path(__file__).resolve().parent.parent.parent
+        default_dir = project_root / "conf.d"
+        os.environ["AUTH_CONFIG_DIR"] = str(default_dir)
+        print(f"Using default AUTH_CONFIG_DIR: {default_dir}")
+    
+    print(f"Current AUTH_CONFIG_DIR environment variable: {os.getenv('AUTH_CONFIG_DIR')}")
+    
+    try:
+        # Initialize the AuthConfigManager
+        print("\n=== Initializing AuthConfigManager ===")
+        config_manager = init_auth_config()
+        
+        # Debug session: Display loaded configurations
+        print("\n=== Debug Session: Loaded Configurations ===")
+        all_configs = config_manager.get_all_configs()
+        
+        if not all_configs:
+            print("No configurations found!")
+        else:
+            for provider, platforms in all_configs.items():
+                print(f"\nProvider: {provider}")
+                for platform, config in platforms.items():
+                    print(f"  Platform: {platform}")
+                    print(f"    Client ID: {config.client_id}")
+                    print(f"    Token Endpoint: {config.token_endpoint}")
+                    print(f"    Scope: {config.scope}")
+                    print(f"    Authorization Endpoint: {config.authorization_endpoint}")
+                    print(f"    Redirect URI: {config.redirect_uri}")
+        
+        # Test getting specific configurations
+        print("\n=== Testing Configuration Retrieval ===")
+        for provider in ['google', 'apple']:
+            for platform in ['web', 'ios']:
+                try:
+                    config = config_manager.get_auth_config(provider, platform)
+                    print(f"✓ Successfully retrieved {provider}_{platform} config")
+                except KeyError as e:
+                    print(f"✗ Could not retrieve {provider}_{platform} config: {e}")
+        
+        print("\n=== Debug Session Complete ===")
+        
+    except Exception as e:
+        print(f"Error during debug session: {e}")
+        logging.exception("Detailed error information:")
+        return 1
+    
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

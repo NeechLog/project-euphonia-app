@@ -84,6 +84,55 @@ class TestAuthConfig:
 class TestAuthConfigManager:
     """Test the AuthConfigManager class."""
     
+    def test_parse_config_filename_simple(self):
+        """Test parsing simple config filenames."""
+        manager = AuthConfigManager()
+        
+        # Test simple cases
+        assert manager._parse_config_filename("google_web.env") == ("google", "web")
+        assert manager._parse_config_filename("apple_ios.env") == ("apple", "ios")
+        assert manager._parse_config_filename("microsoft_android.env") == ("microsoft", "android")
+    
+    def test_parse_config_filename_complex_platforms(self):
+        """Test parsing config filenames with complex platform names containing underscores."""
+        manager = AuthConfigManager()
+        
+        # Test complex platform names
+        assert manager._parse_config_filename("google_ios_beta.env") == ("google", "ios_beta")
+        assert manager._parse_config_filename("apple_ios_debug.env") == ("apple", "ios_debug")
+        assert manager._parse_config_filename("microsoft_android_production.env") == ("microsoft", "android_production")
+        assert manager._parse_config_filename("facebook_web_staging.env") == ("facebook", "web_staging")
+        assert manager._parse_config_filename("amazon_android_debug_build.env") == ("amazon", "android_debug_build")
+    
+    def test_parse_config_filename_example_files(self):
+        """Test parsing .env.example files."""
+        manager = AuthConfigManager()
+        
+        # Test example files
+        assert manager._parse_config_filename("google_web.env.example") == ("google", "web")
+        assert manager._parse_config_filename("apple_ios_beta.env.example") == ("apple", "ios_beta")
+    
+    def test_parse_config_filename_invalid_cases(self):
+        """Test parsing invalid filenames returns None."""
+        manager = AuthConfigManager()
+        
+        # Test invalid cases
+        assert manager._parse_config_filename("invalid.txt") == (None, None)
+        assert manager._parse_config_filename("googleweb.env") == (None, None)  # No underscore
+        assert manager._parse_config_filename("google_.env") == (None, None)  # Empty platform
+        assert manager._parse_config_filename("_web.env") == (None, None)  # Empty provider
+        assert manager._parse_config_filename("google") == (None, None)  # No extension
+        assert manager._parse_config_filename("") == (None, None)  # Empty string
+    
+    def test_parse_config_filename_case_insensitive(self):
+        """Test that parsing is case insensitive."""
+        manager = AuthConfigManager()
+        
+        # Test case insensitivity
+        assert manager._parse_config_filename("GOOGLE_IOS_BETA.env") == ("google", "ios_beta")
+        assert manager._parse_config_filename("Apple_Web_Debug.ENV") == ("apple", "web_debug")
+        assert manager._parse_config_filename("Microsoft_Android_Production.env.EXAMPLE") == ("microsoft", "android_production")
+    
     def test_init_with_custom_dir(self, temp_config_dir):
         """Test initializing with a custom config directory."""
         manager = AuthConfigManager(temp_config_dir)
