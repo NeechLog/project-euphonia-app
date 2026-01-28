@@ -58,6 +58,12 @@ dependencies = [
     "python-daemon>=3.1.2",
     "jinja2>=3.1.6",
     "jwt>=1.4.0",
+    # gRPC dependencies
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    # Local package dependencies
+    "../packages/audiomessages",
+    "../packages/audiocloneclient",
 ]
 
 [tool.setuptools.packages.find]
