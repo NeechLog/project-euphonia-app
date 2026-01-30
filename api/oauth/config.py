@@ -136,6 +136,7 @@ class AuthConfigManager:
             provider=provider,
             platform=platform,
             client_id=env_vars.get('client_id', ''),
+            web_client_id=env_vars.get('web_client_id', ''),
             client_secret=env_vars.get('client_secret', ''),
             token_endpoint=token_endpoint,
             scope=env_vars.get('SCOPE', 'openid email profile'),
