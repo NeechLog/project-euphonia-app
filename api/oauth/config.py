@@ -17,6 +17,7 @@ class AuthConfig:
     client_secret: str
     token_endpoint: str
     scope: str = "openid email profile"  # Default scope for most OAuth providers
+    web_client_id: Optional[str] = None
     team_id: Optional[str] = None
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
@@ -136,6 +137,7 @@ class AuthConfigManager:
             provider=provider,
             platform=platform,
             client_id=env_vars.get('client_id', ''),
+            web_client_id=env_vars.get('web_client_id', ''),
             client_secret=env_vars.get('client_secret', ''),
             token_endpoint=token_endpoint,
             scope=env_vars.get('SCOPE', 'openid email profile'),

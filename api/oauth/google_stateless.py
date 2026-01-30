@@ -79,6 +79,7 @@ def get_platform_config(platform: str, include_secrets: bool = False) -> dict:
         config = {
             "platform": platform,
             "client_id": cfg.client_id,
+            "web_client_id": cfg.web_client_id,
             "authorization_endpoint": cfg.authorization_endpoint,
             "token_endpoint": cfg.token_endpoint,
             "userinfo_endpoint": getattr(cfg, 'userinfo_endpoint', 'https://www.googleapis.com/oauth2/v2/userinfo'),
