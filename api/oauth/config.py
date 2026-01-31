@@ -17,7 +17,6 @@ class AuthConfig:
     client_secret: str
     token_endpoint: str
     scope: str = "openid email profile"  # Default scope for most OAuth providers
-    web_client_id: Optional[str] = None
     team_id: Optional[str] = None
     key_id: Optional[str] = None
     auth_key_path: Optional[str] = None
@@ -137,7 +136,6 @@ class AuthConfigManager:
             provider=provider,
             platform=platform,
             client_id=env_vars.get('client_id', ''),
-            web_client_id=env_vars.get('web_client_id', ''),
             client_secret=env_vars.get('client_secret', ''),
             token_endpoint=token_endpoint,
             scope=env_vars.get('SCOPE', 'openid email profile'),
@@ -330,10 +328,11 @@ def main():
                 print(f"\nProvider: {provider}")
                 for platform, config in platforms.items():
                     print(f"  Platform: {platform}")
-                    config_dict = config.to_dict()
-                    for key, value in config_dict.items():
-                        if value is not None:
-                            print(f"    {key}: {value}")
+                    print(f"    Client ID: {config.client_id}")
+                    print(f"    Token Endpoint: {config.token_endpoint}")
+                    print(f"    Scope: {config.scope}")
+                    print(f"    Authorization Endpoint: {config.authorization_endpoint}")
+                    print(f"    Redirect URI: {config.redirect_uri}")
         
         # Test getting specific configurations
         print("\n=== Testing Configuration Retrieval ===")

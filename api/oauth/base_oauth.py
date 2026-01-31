@@ -8,9 +8,10 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import os
 import json
 from datetime import datetime, timezone
+from urllib.parse import quote as Uri
 from api.oauth import jwt_utils
 from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import jwt, JWTError
 
@@ -307,12 +308,18 @@ class OAuthProvider:
                 "token": token
             }
             
-            # If platform is not web, return JSON response directly
+            # If platform is not web, redirect to app with result
             if platform.lower() != "web":
-                response = JSONResponse({
-                    "success": True,
-                    "data": json_data
-                })
+                # Create deep link URL with essential result only
+                deep_link_url = f"voiceassistance://auth/callback?success=true&token={token}"
+                
+                # Add essential client info
+                if user_client_info.get("va-dir"):
+                    deep_link_url += f"&va-dir={Uri.quote(user_client_info['va-dir'])}"
+                if user_client_info.get("Name"):
+                    deep_link_url += f"&name={Uri.quote(user_client_info['Name'])}"
+                
+                response = RedirectResponse(url=deep_link_url, status_code=302)
             else:
                 # Return success response with token in a secure HTTP-only cookie (for web)
                 response = self.templates.TemplateResponse(
@@ -370,13 +377,17 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web, return JSON response directly
+            # If platform is not web, redirect error to app
             if platform.lower() != "web":
-                response = JSONResponse({
-                    "success": False,
-                    "error": msg,
-                    "data": json_data
-                }, status_code=he.status_code)
+                # Create deep link URL with error information
+                deep_link_url = f"voiceassistance://auth/callback?success=false&error={Uri.quote(msg)}"
+                
+                # Add provider info if available
+                provider_name = getattr(self, 'provider_name', 'unknown')
+                if provider_name != 'unknown':
+                    deep_link_url += f"&provider={provider_name}"
+                
+                response = RedirectResponse(url=deep_link_url, status_code=302)
             else:
                 # Return HTML response for web platform
                 response = self.templates.TemplateResponse(
@@ -417,13 +428,17 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web, return JSON response directly
+            # If platform is not web, redirect error to app
             if platform.lower() != "web":
-                response = JSONResponse({
-                    "success": False,
-                    "error": msg,
-                    "data": json_data
-                }, status_code=500)
+                # Create deep link URL with error information
+                deep_link_url = f"voiceassistance://auth/callback?success=false&error={Uri.quote(msg)}"
+                
+                # Add provider info if available
+                provider_name = getattr(self, 'provider_name', 'unknown')
+                if provider_name != 'unknown':
+                    deep_link_url += f"&provider={provider_name}"
+                
+                response = RedirectResponse(url=deep_link_url, status_code=302)
             else:
                 # Return HTML response for web platform
                 response = self.templates.TemplateResponse(

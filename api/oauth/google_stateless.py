@@ -369,6 +369,79 @@ async def callback(request: Request):
     )
 
 
+@router.post("/native")
+async def native_callback(request: Request):
+    """
+    Handle Google native Sign-In callback using the same pattern as server OAuth.
+    
+    This endpoint receives the Google ID token from the native Sign-In flow,
+    and uses the base_oauth handle_callback pattern for consistency.
+    
+    Expected payload:
+    {
+        "id_token": "google_id_token_here",
+        "platform": "android" | "ios"
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "data": {
+            "token": "server_jwt_token",
+            "va-dir": "generated_va_dir",
+            "name": "user_name"
+        }
+    }
+    """
+    async def native_exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: str | None) -> Dict[str, Any]:
+        """Exchange Google ID token for user info (simulates OAuth exchange)."""
+        # For native flow, 'code' is actually the ID token
+        id_token = code
+        
+        # Use the existing verified ID token extraction
+        # Get client ID from config for proper verification
+        google_config = _get_internal_config("web")  # Use web config for client ID
+        user_info = _extract_user_info_from_id_token(id_token, google_config)
+        
+        if not user_info:
+            raise HTTPException(status_code=400, detail="Failed to extract user information from Google ID token")
+        
+        # Return user info in the same format as token exchange
+        return {
+            "access_token": id_token,  # Return ID token as access token for consistency
+            "id_token": id_token,
+            "user_info": user_info
+        }
+    
+    # Create a mock request that looks like an OAuth callback to the base handler
+    # We'll extract the ID token from the request body and pass it as 'code'
+    body = await request.json()
+    id_token = body.get("id_token")
+    platform = body.get("platform", "unknown")
+    
+    if not id_token:
+        raise HTTPException(status_code=400, detail="Missing id_token")
+    
+    # Create a mock request with query parameters for the base handler
+    class MockRequest:
+        def __init__(self, id_token: str, platform: str):
+            self.query_params = {"code": id_token, "platform": platform}
+            self.cookies = {}
+            self.url = f"http://mock/auth/google/native?code={id_token}&platform={platform}"
+    
+    mock_request = MockRequest(id_token, platform)
+    
+    # Use the same callback handling pattern as server OAuth
+    return await get_oauth_provider().handle_callback(
+        request=mock_request,
+        exchange_callback=native_exchange_callback,
+        success_html_title="Google Native Login Complete",
+        success_html_heading="Google native authentication completed",
+        config_loader=lambda platform: {},  # No config needed for native flow
+        user_info_extractor=lambda result, config: result.get("user_info", {})
+    )
+
+
 @router.post("/exchange")
 async def exchange_from_client(request: Request):
     body = await request.json()

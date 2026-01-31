@@ -61,3 +61,10 @@ app.*.map.json
 /macos/Flutter/GeneratedPluginRegistrant.swift
 /windows/flutter/generated_plugin*
 venv/
+
+# Python egg-info
+*.egg-info/
+*.egg
+
+# Coverage reports
+.coverage
