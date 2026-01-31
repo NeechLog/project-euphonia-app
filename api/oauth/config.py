@@ -329,12 +329,10 @@ def main():
             for provider, platforms in all_configs.items():
                 print(f"\nProvider: {provider}")
                 for platform, config in platforms.items():
-                    print(f"  Platform: {platform}")
-                    print(f"    Client ID: {config.client_id}")
-                    print(f"    Token Endpoint: {config.token_endpoint}")
-                    print(f"    Scope: {config.scope}")
-                    print(f"    Authorization Endpoint: {config.authorization_endpoint}")
-                    print(f"    Redirect URI: {config.redirect_uri}")
+                    config_dict = config.to_dict()
+                    for key, value in config_dict.items():
+                        if value is not None:
+                            print(f"    {key}: {value}")
         
         # Test getting specific configurations
         print("\n=== Testing Configuration Retrieval ===")
