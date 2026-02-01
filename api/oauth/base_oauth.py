@@ -212,6 +212,22 @@ class OAuthProvider:
         
         return code, state, platform, code_verifier
 
+    def _get_deep_link_scheme(config) -> str:
+        """Get deep link scheme from config with default fallback.
+        
+        Args:
+            config: The OAuth configuration (dict or object)
+            
+        Returns:
+            str: Deep link scheme (defaults to "voiceassistance")
+        """
+        deep_link_scheme = "voiceassistance"
+        if isinstance(config, dict) and config.get("deep_link_scheme"):
+            deep_link_scheme = config["deep_link_scheme"]
+        elif hasattr(config, 'deep_link_scheme') and config.deep_link_scheme:
+            deep_link_scheme = config.deep_link_scheme
+        return deep_link_scheme
+
     async def handle_callback(
         self,
         request: Request,
@@ -219,7 +235,9 @@ class OAuthProvider:
         success_html_title: str,
         success_html_heading: str,
         config_loader: Callable[[str], Any],
-        user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
+        user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]],
+        # Parameter extraction function that handles both extraction and state verification
+        param_extractor: Optional[Callable[[Request], Tuple[str, Optional[str], str, Optional[str], str]]] = None
     ) -> HTMLResponse | JSONResponse:
         """Handle OAuth callback.
         
@@ -230,6 +248,9 @@ class OAuthProvider:
             success_html_heading: Heading for success page
             config_loader: Function to load provider config
             user_info_extractor: Function to extract user info from OAuth result
+            param_extractor: Function that extracts parameters and optionally verifies state.
+                           Returns: (code, state, platform, code_verifier, return_url)
+                           If None, uses default server-mediated OAuth extraction.
             
         Returns:
             HTMLResponse | JSONResponse: The response to return to the client (HTML for web, JSON for other platforms)
@@ -237,16 +258,23 @@ class OAuthProvider:
         logger.info("Handling OAuth callback request")
         response: Optional[HTMLResponse | JSONResponse] = None
         try:
-            # Extract OAuth parameters and verify state
-            code, state, platform, code_verifier = await self._extract_oauth_params_and_verify_state(request)
-            if not code:
-                raise HTTPException(status_code=400, detail="No authorization code provided")
-            logger.debug(f"Extracted OAuth params - code: {bool(code)}, state: {bool(state)}, platform: {platform}")
-            
-            # Extract return_url from state payload
-            state_cookie_value = request.cookies.get(self.state_cookie_name)
-            state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
-            return_url = state_payload.get("return_url", "/")
+            # Use custom parameter extractor or default server-mediated extraction
+            if param_extractor:
+                # Custom parameter extraction (e.g., for native flows)
+                code, state, platform, code_verifier, return_url = await param_extractor(request)
+                # For native flows, return_url comes from the extractor and defaults to None
+                # We won't do redirection for native flows - just return JSON response
+            else:
+                # Default server-mediated OAuth parameter extraction and state verification
+                code, state, platform, code_verifier = await self._extract_oauth_params_and_verify_state(request)
+                if not code:
+                    raise HTTPException(status_code=400, detail="No authorization code provided")
+                logger.debug(f"Extracted OAuth params - code: {bool(code)}, state: {bool(state)}, platform: {platform}")
+                
+                # Extract return_url from state payload
+                state_cookie_value = request.cookies.get(self.state_cookie_name)
+                state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
+                return_url = state_payload.get("return_url", "/")
             
             # Load provider config
             config = config_loader(platform)
@@ -308,10 +336,11 @@ class OAuthProvider:
                 "token": token
             }
             
-            # If platform is not web, redirect to app with result
-            if platform.lower() != "web":
+            # If platform is not web and this is server-mediated flow, redirect to app with result
+            # For native flows (param_extractor provided), just return JSON response
+            if platform.lower() != "web" and not param_extractor:
                 # Create deep link URL with essential result only
-                deep_link_url = f"voiceassistance://auth/callback?success=true&token={token}"
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=true&token={token}"
                 
                 # Add essential client info
                 if user_client_info.get("va-dir"):
@@ -322,6 +351,7 @@ class OAuthProvider:
                 response = RedirectResponse(url=deep_link_url, status_code=302)
             else:
                 # Return success response with token in a secure HTTP-only cookie (for web)
+                # or JSON response for native flows
                 response = self.templates.TemplateResponse(
                     "auth_result.html",
                     {
@@ -377,10 +407,11 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web, redirect error to app
-            if platform.lower() != "web":
+            # If platform is not web and this is server-mediated flow, redirect error to app
+            # For native flows (param_extractor provided), just return JSON error response
+            if platform.lower() != "web" and not param_extractor:
                 # Create deep link URL with error information
-                deep_link_url = f"voiceassistance://auth/callback?success=false&error={Uri.quote(msg)}"
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(msg)}"
                 
                 # Add provider info if available
                 provider_name = getattr(self, 'provider_name', 'unknown')
@@ -389,7 +420,7 @@ class OAuthProvider:
                 
                 response = RedirectResponse(url=deep_link_url, status_code=302)
             else:
-                # Return HTML response for web platform
+                # Return HTML response for web platform or JSON for native flows
                 response = self.templates.TemplateResponse(
                     "auth_result.html",
                     {
@@ -428,10 +459,11 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web, redirect error to app
-            if platform.lower() != "web":
+            # If platform is not web and this is server-mediated flow, redirect error to app
+            # For native flows (param_extractor provided), just return JSON error response
+            if platform.lower() != "web" and not param_extractor:
                 # Create deep link URL with error information
-                deep_link_url = f"voiceassistance://auth/callback?success=false&error={Uri.quote(msg)}"
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(msg)}"
                 
                 # Add provider info if available
                 provider_name = getattr(self, 'provider_name', 'unknown')

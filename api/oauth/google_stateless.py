@@ -343,7 +343,7 @@ def _exchange_code_for_tokens(
         logger.error("Google token endpoint error: %s", payload)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google token endpoint error")
 
-    logger.info("Google OIDC token response: %s", payload)
+    logger.debug("Google OIDC token response: %s", payload)
     return payload
 
 
@@ -367,6 +367,33 @@ async def callback(request: Request):
         config_loader=_get_internal_config,
         user_info_extractor=_extract_google_user_info
     )
+
+
+async def _extract_native_oauth_params(request: Request) -> Tuple[str, Optional[str], str, Optional[str], str]:
+    """Extract parameters for Google native OAuth flow.
+    
+    Args:
+        request: The incoming request with ID token and platform
+        
+    Returns:
+        Tuple: (id_token, None, platform, None, "/")
+    """
+    # Extract parameters from request
+    params = dict(request.query_params)
+    if request.method.upper() == "POST":
+        try:
+            body = await request.json()
+            params.update(body)
+        except Exception:
+            pass
+    
+    id_token = params.get("id_token")
+    platform = params.get("platform", "unknown")
+    
+    if not id_token:
+        raise HTTPException(status_code=400, detail="Missing id_token for native OAuth")
+    
+    return id_token, None, platform, None, "/"
 
 
 @router.post("/native")
@@ -413,32 +440,15 @@ async def native_callback(request: Request):
             "user_info": user_info
         }
     
-    # Create a mock request that looks like an OAuth callback to the base handler
-    # We'll extract the ID token from the request body and pass it as 'code'
-    body = await request.json()
-    id_token = body.get("id_token")
-    platform = body.get("platform", "unknown")
-    
-    if not id_token:
-        raise HTTPException(status_code=400, detail="Missing id_token")
-    
-    # Create a mock request with query parameters for the base handler
-    class MockRequest:
-        def __init__(self, id_token: str, platform: str):
-            self.query_params = {"code": id_token, "platform": platform}
-            self.cookies = {}
-            self.url = f"http://mock/auth/google/native?code={id_token}&platform={platform}"
-    
-    mock_request = MockRequest(id_token, platform)
-    
-    # Use the same callback handling pattern as server OAuth
+    # Use the same callback handling pattern as server OAuth with custom parameter extractor
     return await get_oauth_provider().handle_callback(
-        request=mock_request,
+        request=request,
         exchange_callback=native_exchange_callback,
         success_html_title="Google Native Login Complete",
         success_html_heading="Google native authentication completed",
         config_loader=lambda platform: {},  # No config needed for native flow
-        user_info_extractor=lambda result, config: result.get("user_info", {})
+        user_info_extractor=lambda result, config: result.get("user_info", {}),
+        param_extractor=_extract_native_oauth_params  # Custom parameter extractor for native flow
     )
 
 

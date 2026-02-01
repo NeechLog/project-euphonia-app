@@ -23,6 +23,7 @@ class AuthConfig:
     auth_key_path: Optional[str] = None
     authorization_endpoint: Optional[str] = None
     redirect_uri: Optional[str] = None
+    deep_link_scheme: Optional[str] = None  # Deep link scheme for mobile redirects (e.g., "voiceassistance")
     storage_callback: Optional[Callable[[Dict[str, Any], str, str], None]] = None
     client_info_extractor: Optional[Callable[[Dict[str, Any], str, str], Dict[str, Any]]] = None 
     
@@ -145,6 +146,7 @@ class AuthConfigManager:
             key_id=env_vars.get('KEY_ID'),
             authorization_endpoint=env_vars.get('auth_uri'),
             redirect_uri=env_vars.get('redirect_uri'),
+            deep_link_scheme=env_vars.get('DEEP_LINK_SCHEME'),
             auth_key_path=env_vars.get('AUTH_KEY_PATH'),
             storage_callback=self.storage_callback,
             client_info_extractor=self.client_info_extractor
