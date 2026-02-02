@@ -420,6 +420,22 @@ async def native_callback(request: Request):
         }
     }
     """
+    # Extract parameters from request to determine if redirection is needed
+    params = dict(request.query_params)
+    if request.method.upper() == "POST":
+        try:
+            body = await request.json()
+            params.update(body)
+        except Exception:
+            pass
+    
+    platform = params.get("platform", "unknown")
+    
+    # Check if redirection is required based on request parameter or platform
+    redirect_required = params.get("redirect", "false").lower() == "true"
+    is_android = "android" in platform.lower()
+    should_redirect = redirect_required or not is_android
+    
     async def native_exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: str | None) -> Dict[str, Any]:
         """Exchange Google ID token for user info (simulates OAuth exchange)."""
         # For native flow, 'code' is actually the ID token
@@ -448,7 +464,8 @@ async def native_callback(request: Request):
         success_html_heading="Google native authentication completed",
         config_loader=lambda platform: {},  # No config needed for native flow
         user_info_extractor=lambda result, config: result.get("user_info", {}),
-        param_extractor=_extract_native_oauth_params  # Custom parameter extractor for native flow
+        param_extractor=_extract_native_oauth_params,  # Custom parameter extractor for native flow
+        should_redirect=should_redirect
     )
 
 

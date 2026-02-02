@@ -212,7 +212,7 @@ class OAuthProvider:
         
         return code, state, platform, code_verifier
 
-    def _get_deep_link_scheme(config) -> str:
+    def _get_deep_link_scheme(self, config) -> str:
         """Get deep link scheme from config with default fallback.
         
         Args:
@@ -228,6 +228,120 @@ class OAuthProvider:
             deep_link_scheme = config.deep_link_scheme
         return deep_link_scheme
 
+    def _create_auth_response(
+        self,
+        request: Request,
+        platform: str,
+        token: str,
+        user_client_info: Dict[str, Any],
+        return_url: str,
+        json_data: Dict[str, Any],
+        config: Any,
+        is_success: bool = True,
+        error_message: Optional[str] = None,
+        status_code: int = 200,
+        should_redirect: bool = True
+    ) -> HTMLResponse | JSONResponse:
+        """Create authentication response (success or error).
+        
+        Args:
+            request: The incoming request
+            platform: The platform (web, ios, android)
+            token: JWT token (empty string for errors)
+            user_client_info: Client information dictionary
+            return_url: URL to return to
+            json_data: JSON data for the response
+            config: OAuth configuration
+            is_success: Whether this is a success response
+            error_message: Error message (for error responses)
+            status_code: HTTP status code
+            should_redirect: Whether to redirect (True) or return JSON (False)
+            
+        Returns:
+            HTMLResponse | JSONResponse: The appropriate response
+        """
+        # If should_redirect is True, redirect to app with result
+        # Otherwise, return JSON response
+        if should_redirect:
+            if is_success:
+                # Create deep link URL with essential result only
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=true&token={token}"
+                
+                # Add essential client info
+                if user_client_info.get("va-dir"):
+                    deep_link_url += f"&va-dir={Uri.quote(user_client_info['va-dir'])}"
+                if user_client_info.get("Name"):
+                    deep_link_url += f"&name={Uri.quote(user_client_info['Name'])}"
+            else:
+                # Create deep link URL with error information
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(error_message)}"
+                
+                # Add provider info if available
+                provider_name = getattr(self, 'provider_name', 'unknown')
+                if provider_name != 'unknown':
+                    deep_link_url += f"&provider={provider_name}"
+            
+            response = RedirectResponse(url=deep_link_url, status_code=302)
+        else:
+            # Return JSON response for non-web platforms or HTML for web platforms
+            if platform.lower() != "web":
+                # Return JSON response for native flows
+                response = JSONResponse(
+                    content=json_data,
+                    status_code=status_code if not is_success else 200
+                )
+            else:
+                # Return HTML response for web platform
+                if is_success:
+                    template_data = {
+                        "request": request,
+                        "success_html_title": user_client_info.get("success_html_title", "Authentication successful"),
+                        "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
+                        "token": token,
+                        "is_success": True,
+                        "va-dir": user_client_info.get("va-dir", ""),
+                        "Name" : user_client_info.get("Name", ""),
+                        "return_url": return_url,
+                        "json_data": json.dumps(json_data)
+                    }
+                else:
+                    template_data = {
+                        "request": request,
+                        "success_html_title": "Authentication failed",
+                        "success_html_heading": "Authentication failed",
+                        "token": "",
+                        "is_success": False,
+                        "error_message": error_message,
+                        "return_url": return_url,
+                        "json_data": json.dumps(json_data)
+                    }
+                
+                response = self.templates.TemplateResponse(
+                    "auth_result.html",
+                    template_data,
+                    status_code=status_code if not is_success else 200,
+                )
+        
+        # Set the JWT token in an HTTP-only cookie using the cookie generator function
+        if token and self.cookie_generator_func:
+            cookie_config = self.cookie_generator_func(token, platform, self.provider_name)
+            response.set_cookie(**cookie_config)
+        elif token:
+            # Default cookie setting for backward compatibility
+            jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
+            response.set_cookie(
+                key="auth_token",
+                value=token,
+                httponly=True,
+                secure=True,  # Only send over HTTPS in production
+                samesite='lax',  # Helps prevent CSRF attacks
+                max_age=jwt_expire_hours * 3600,  # Match JWT expiration
+                domain=None,  # Let browser use default (current domain)
+                path='/',  # Make cookie available across the entire site
+            )
+        
+        return response
+
     async def handle_callback(
         self,
         request: Request,
@@ -237,7 +351,8 @@ class OAuthProvider:
         config_loader: Callable[[str], Any],
         user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]],
         # Parameter extraction function that handles both extraction and state verification
-        param_extractor: Optional[Callable[[Request], Tuple[str, Optional[str], str, Optional[str], str]]] = None
+        param_extractor: Optional[Callable[[Request], Tuple[str, Optional[str], str, Optional[str], str]]] = None,
+        should_redirect: bool = False
     ) -> HTMLResponse | JSONResponse:
         """Handle OAuth callback.
         
@@ -251,9 +366,10 @@ class OAuthProvider:
             param_extractor: Function that extracts parameters and optionally verifies state.
                            Returns: (code, state, platform, code_verifier, return_url)
                            If None, uses default server-mediated OAuth extraction.
+            should_redirect: Whether to redirect response (True) or return JSON/HTML (False)
             
         Returns:
-            HTMLResponse | JSONResponse: The response to return to the client (HTML for web, JSON for other platforms)
+            HTMLResponse | JSONResponse: The response to return to the client
         """
         logger.info("Handling OAuth callback request")
         response: Optional[HTMLResponse | JSONResponse] = None
@@ -336,54 +452,17 @@ class OAuthProvider:
                 "token": token
             }
             
-            # If platform is not web and this is server-mediated flow, redirect to app with result
-            # For native flows (param_extractor provided), just return JSON response
-            if platform.lower() != "web" and not param_extractor:
-                # Create deep link URL with essential result only
-                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=true&token={token}"
-                
-                # Add essential client info
-                if user_client_info.get("va-dir"):
-                    deep_link_url += f"&va-dir={Uri.quote(user_client_info['va-dir'])}"
-                if user_client_info.get("Name"):
-                    deep_link_url += f"&name={Uri.quote(user_client_info['Name'])}"
-                
-                response = RedirectResponse(url=deep_link_url, status_code=302)
-            else:
-                # Return success response with token in a secure HTTP-only cookie (for web)
-                # or JSON response for native flows
-                response = self.templates.TemplateResponse(
-                    "auth_result.html",
-                    {
-                        "request": request,
-                        "success_html_title": user_client_info.get("success_html_title", "Authentication successful"),
-                        "success_html_heading": user_client_info.get("success_html_heading", "Authentication successful"),
-                        "token": token,
-                        "is_success": True,
-                        "va-dir": user_client_info.get("va-dir", ""),
-                        "Name" : user_client_info.get("Name", ""),
-                        "return_url": return_url,
-                        "json_data": json.dumps(json_data)
-                    }
-                )
-            
-            # Set the JWT token in an HTTP-only cookie using the cookie generator function
-            if self.cookie_generator_func:
-                cookie_config = self.cookie_generator_func(token, platform, self.provider_name)
-                response.set_cookie(**cookie_config)
-            else:
-                # Default cookie setting for backward compatibility
-                jwt_expire_hours = int(os.getenv('JWT_EXPIRE_HOURS', '24'))
-                response.set_cookie(
-                    key="auth_token",
-                    value=token,
-                    httponly=True,
-                    secure=True,  # Only send over HTTPS in production
-                    samesite='lax',  # Helps prevent CSRF attacks
-                    max_age=jwt_expire_hours * 3600,  # Match JWT expiration
-                    domain=None,  # Let browser use default (current domain)
-                    path='/',  # Make cookie available across the entire site
-                )
+            response = self._create_auth_response(
+                request=request,
+                platform=platform,
+                token=token,
+                user_client_info=user_client_info,
+                return_url=return_url,
+                json_data=json_data,
+                config=config,
+                is_success=True,
+                should_redirect=should_redirect
+            )
             
             return response
 
@@ -407,34 +486,19 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web and this is server-mediated flow, redirect error to app
-            # For native flows (param_extractor provided), just return JSON error response
-            if platform.lower() != "web" and not param_extractor:
-                # Create deep link URL with error information
-                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(msg)}"
-                
-                # Add provider info if available
-                provider_name = getattr(self, 'provider_name', 'unknown')
-                if provider_name != 'unknown':
-                    deep_link_url += f"&provider={provider_name}"
-                
-                response = RedirectResponse(url=deep_link_url, status_code=302)
-            else:
-                # Return HTML response for web platform or JSON for native flows
-                response = self.templates.TemplateResponse(
-                    "auth_result.html",
-                    {
-                        "request": request,
-                        "success_html_title": "Authentication failed",
-                        "success_html_heading": "Authentication failed",
-                        "token": "",
-                        "is_success": False,
-                        "error_message": msg,
-                        "return_url": return_url,
-                        "json_data": json.dumps(json_data)
-                    },
-                    status_code=he.status_code,
-                )
+            response = self._create_auth_response(
+                request=request,
+                platform=platform,
+                token="",
+                user_client_info={},
+                return_url=return_url,
+                json_data=json_data,
+                config=config,
+                is_success=False,
+                error_message=msg,
+                status_code=he.status_code,
+                should_redirect=should_redirect
+            )
             
             return response
 
@@ -459,34 +523,19 @@ class OAuthProvider:
                 "provider": getattr(self, 'provider_name', 'unknown')
             }
             
-            # If platform is not web and this is server-mediated flow, redirect error to app
-            # For native flows (param_extractor provided), just return JSON error response
-            if platform.lower() != "web" and not param_extractor:
-                # Create deep link URL with error information
-                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(msg)}"
-                
-                # Add provider info if available
-                provider_name = getattr(self, 'provider_name', 'unknown')
-                if provider_name != 'unknown':
-                    deep_link_url += f"&provider={provider_name}"
-                
-                response = RedirectResponse(url=deep_link_url, status_code=302)
-            else:
-                # Return HTML response for web platform
-                response = self.templates.TemplateResponse(
-                    "auth_result.html",
-                    {
-                        "request": request,
-                        "success_html_title": "Authentication failed",
-                        "success_html_heading": "Authentication failed",
-                        "token": "",
-                        "is_success": False,
-                        "error_message": msg,
-                        "return_url": return_url,
-                        "json_data": json.dumps(json_data)
-                    },
-                    status_code=500,
-                )
+            response = self._create_auth_response(
+                request=request,
+                platform=platform,
+                token="",
+                user_client_info={},
+                return_url=return_url,
+                json_data=json_data,
+                config=config,
+                is_success=False,
+                error_message=msg,
+                status_code=500,
+                should_redirect=should_redirect
+            )
             
             return response
 
