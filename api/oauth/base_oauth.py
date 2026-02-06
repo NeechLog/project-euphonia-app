@@ -269,12 +269,12 @@ class OAuthProvider:
                 
                 # Add essential client info
                 if user_client_info.get("va-dir"):
-                    deep_link_url += f"&va-dir={Uri.quote(user_client_info['va-dir'])}"
+                    deep_link_url += f"&va-dir={Uri(user_client_info['va-dir'])}"
                 if user_client_info.get("Name"):
-                    deep_link_url += f"&name={Uri.quote(user_client_info['Name'])}"
+                    deep_link_url += f"&name={Uri(user_client_info['Name'])}"
             else:
                 # Create deep link URL with error information
-                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri.quote(error_message)}"
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri(error_message)}"
                 
                 # Add provider info if available
                 provider_name = getattr(self, 'provider_name', 'unknown')
