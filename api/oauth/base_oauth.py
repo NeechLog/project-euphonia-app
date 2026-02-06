@@ -17,6 +17,39 @@ from jose import jwt, JWTError
 
 logger = logging.getLogger(__name__)
 
+async def _log_request_details(request: Request) -> None:
+    """Log complete request details for debugging."""
+    logger.debug(f"Request method: {request.method}")
+    logger.debug(f"Request URL: {request.url}")
+    logger.debug(f"Request headers: {dict(request.headers)}")
+    
+    # Log query parameters
+    query_params = dict(request.query_params)
+    if query_params:
+        logger.debug(f"Query parameters: {query_params}")
+    else:
+        logger.debug("No query parameters present")
+    
+    # Log form data if present
+    try:
+        form_data = await request.form()
+        if form_data:
+            logger.debug(f"Form data: {dict(form_data)}")
+        else:
+            logger.debug("No form data present")
+    except Exception as e:
+        logger.debug(f"Could not read form data: {e}")
+    
+    # Log JSON body if present
+    try:
+        json_body = await request.json()
+        if json_body:
+            logger.debug(f"JSON body: {json_body}")
+        else:
+            logger.debug("No JSON body present")
+    except Exception as e:
+        logger.debug(f"Could not read JSON body: {e}")
+
 class OAuthProvider:
     """Base class for OAuth providers."""
     
@@ -372,6 +405,7 @@ class OAuthProvider:
             HTMLResponse | JSONResponse: The response to return to the client
         """
         logger.info("Handling OAuth callback request")
+        await _log_request_details(request)
         response: Optional[HTMLResponse | JSONResponse] = None
         try:
             # Use custom parameter extractor or default server-mediated extraction

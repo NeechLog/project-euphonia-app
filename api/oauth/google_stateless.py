@@ -434,7 +434,11 @@ async def native_callback(request: Request):
     # Check if redirection is required based on request parameter or platform
     redirect_required = params.get("redirect", "false").lower() == "true"
     is_android = "android" in platform.lower()
-    should_redirect = redirect_required or not is_android
+    is_ios = "ios" in platform.lower()
+    should_redirect = redirect_required and not (is_android or is_ios)
+    
+    # Debug logging for redirect logic
+    logger.debug(f"Redirect logic - Platform: {platform or 'unknown'} | Required: {redirect_required} | Android: {is_android} | iOS: {is_ios} | Should redirect: {should_redirect}")
     
     async def native_exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: str | None) -> Dict[str, Any]:
         """Exchange Google ID token for user info (simulates OAuth exchange)."""
