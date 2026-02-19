@@ -191,13 +191,13 @@
           console.log('Authentication successful, redirecting to:', returnUrl);
           // Redirect to return URL after successful authentication
           setTimeout(function() {
-            window.location.href = returnUrl;
+            window.location.href = returnUrl + '?success=true';
           }, 1500);
         } else {
           console.log('Authentication failed:', errorMessage);
           // For errors, still redirect but after a longer delay to show the error
           setTimeout(function() {
-            window.location.href = returnUrl;
+            window.location.href = returnUrl + '?success=false'
           }, 3000);
         }
       };

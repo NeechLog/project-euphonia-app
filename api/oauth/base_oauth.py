@@ -288,7 +288,7 @@ class OAuthProvider:
             is_success: Whether this is a success response
             error_message: Error message (for error responses)
             status_code: HTTP status code
-            should_redirect: Whether to redirect (True) or return JSON (False)
+            should_redirect: Whether to redirect (True) or return JSON (False) -this is 302 only.
             
         Returns:
             HTMLResponse | JSONResponse: The appropriate response
@@ -317,7 +317,7 @@ class OAuthProvider:
             response = RedirectResponse(url=deep_link_url, status_code=302)
         else:
             # Return JSON response for non-web platforms or HTML for web platforms
-            if platform.lower() != "web":
+            if "web" not in platform.lower():
                 # Return JSON response for native flows
                 response = JSONResponse(
                     content=json_data,
