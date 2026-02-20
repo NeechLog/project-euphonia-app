@@ -77,8 +77,8 @@ LOG_CONFIG = {
 }
 
 UVICORN_CONFIG = {
-    "app": "app_dia:app",
-    "host": "0.0.0.0",
+    "app": "api.app_dia:app",
+    "host": "127.0.0.1",
     "port": 60001,
     "workers": 8,
     "log_config": LOG_CONFIG,

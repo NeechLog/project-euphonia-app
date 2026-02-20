@@ -8,7 +8,7 @@ import signal
 import sys
 import time
 from pathlib import Path
-from uvicorn_config import get_pid_file_path
+from api.uvicorn_config import get_pid_file_path
 
 def stop_server():
     """Stop the running Uvicorn server gracefully."""

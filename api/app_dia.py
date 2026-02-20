@@ -18,10 +18,11 @@ from pathlib import Path
 import tempfile
 import os
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'e2ecloudAdapter'))
-
+# Add adapter directories to Python path
+api_dir = Path(__file__).parent
+sys.path.append(str(api_dir / 'local_adapter'))
+sys.path.append(str(api_dir / 'gcloudAdapter'))
+sys.path.append(str(api_dir / 'e2ecloudAdapter'))
 
 # Default constants
 DEFAULT_HASH_ID = "default_user_123"
