@@ -30,7 +30,7 @@ dependencies = [
     # Audio Processing
     "numpy>=1.24.0,<2.0.0", # Pinned to be compatible with PyTorch 2.1.0
     "torch==2.1.0",
-    "torchvision==0.16.0",
+    "torchvision==0.22.0",
     "torchaudio==2.1.0",
     "soundfile>=0.12.1",
     "librosa>=0.10.0",
@@ -62,13 +62,13 @@ dependencies = [
     "grpcio>=1.50.0",
     "grpcio-tools>=1.50.0",
     # Local package dependencies
-    "../packages/audiomessages",
-    "../packages/audiocloneclient",
+    "AudioMessages @file:///home/jovyan/voice_assist/packages/audiomessages",
+    # "../packages/audiocloneclient",
 ]
 
 [tool.setuptools.packages.find]
-where = ["api"]  # Look for packages in the api directory
-include = ["*"]  # Include all packages under api/
+where = ["."]  # Look for packages in the api directory
+include = ["api*"]  # Include all packages under api/
 
 [project.scripts]
 euphonia-serve = "api.start_server:start_server"
