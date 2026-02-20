@@ -30,12 +30,13 @@ dependencies = [
     # Audio Processing
     "numpy>=1.24.0,<2.0.0", # Pinned to be compatible with PyTorch 2.1.0
     "torch==2.1.0",
-    "torchvision==0.22.0",
+    "torchvision==0.16.0",
     "torchaudio==2.1.0",
     "soundfile>=0.12.1",
     "librosa>=0.10.0",
     "webrtcvad>=2.0.10",
     "pydub>=0.25.1",
+    "ffmpeg-python>=0.2.0",
     "nemo-toolkit[asr]>=2.5.1",
     "nari-tts",
     "openai-whisper>=20231117",
@@ -285,3 +286,4 @@ no_implicit_optional = true
 line-length = 100
 select = ["E", "F", "I"]
 ignore = ["E501"]
+

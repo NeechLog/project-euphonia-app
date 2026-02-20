@@ -14,7 +14,7 @@ import daemon.pidfile
 from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
-from uvicorn_config import UVICORN_CONFIG, get_pid_file_path
+from api.uvicorn_config import UVICORN_CONFIG, get_pid_file_path
 from api.oauth import init_auth_config
 from api.auth_util import generate_jwt_token, client_provided_storage_callback, extract_user_client_info, generate_auth_cookies, delete_auth_cookies
 
