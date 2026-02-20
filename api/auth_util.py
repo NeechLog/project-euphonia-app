@@ -250,20 +250,45 @@ def isUserAdmin(email: str) -> bool:
     admin_list = [email.strip() for email in admin_emails.split(',') if email.strip()]
     return email in admin_list
 
+import hashlib
+
+# z-base-32 alphabet for URL-safe directory identifiers
+_ZBASE32_CHARS = 'ybndrfg8ejkmcpqxot1uwisza345h769'
+
+
+def _to_zbase32(n: int, length: int) -> str:
+    """Convert an integer to a zero-padded z-base-32 string of the given length."""
+    if n == 0:
+        return _ZBASE32_CHARS[0] * length
+    result = ''
+    while n > 0:
+        result = _ZBASE32_CHARS[n % 32] + result
+        n = n // 32
+    return result.zfill(length)[:length]
+
+
 def getVaDir(user_id: str, email: str, provider: str) -> str:
     """
-    Generate a VA(VoiceAssist) directory identifier by appending provider and id with underscore.
-    
+    Generate a consistent VA directory identifier for user storage.
+
+    Uses null-byte delimiters to prevent field-boundary ambiguity.
+    80-bit entropy (~1.2e24 values) — collision probability reaches 50% only at ~1.2 billion users.
+
     Args:
-        user_id: User ID to generate VA directory for
-        email: User email to generate VA directory for
+        user_id: Unique user identifier from OAuth provider
+        email: User's email address (may be empty/None)
         provider: OAuth provider name (e.g., 'google', 'apple')
-        
+
     Returns:
-        str: VA directory identifier in format 'provider_id'
+        str: VA directory identifier (16-character z-base-32 hash)
     """
-    email_suffix = str(hash(email.replace('@', '_')))[:10] if email else str(hash(user_id))[:10]
-    return f"{provider}_{user_id}_{email_suffix}"
+    # Null-byte separator is unambiguous — can't appear in provider/user_id/email strings
+    hash_input = f"{provider}\x00{user_id}\x00{email or ''}".encode('utf-8')
+    hash_hex = hashlib.sha256(hash_input).hexdigest()
+
+    # 20 hex chars = 80 bits of entropy → 80 / 5 = 16 z-base-32 characters
+    hash_int = int(hash_hex[:20], 16)
+    return _to_zbase32(hash_int, 16)
 
 def is_user_admin_from_token(token: str) -> bool:
     """
