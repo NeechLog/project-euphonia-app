@@ -17,6 +17,19 @@ import sys
 from pathlib import Path
 import tempfile
 import os
+import shutil
+
+# Import model request helpers
+from model_request_helpers import (
+    validate_audio_format_from_file,
+    validate_audio_format,
+    build_and_validate_audio_message,
+    build_audio_message,
+    validate_audio_message,
+    is_valid_wav,
+    TEMP_AUDIO_DIR,
+    GOOD_AUDIO_DIR
+)
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'local_adapter'))
 sys.path.append(os.path.join(os.path.dirname(__file__), 'gcloudAdapter'))
@@ -28,6 +41,8 @@ DEFAULT_HASH_ID = "default_user_123"
 DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
 STORAGE = "local" # or "gcs" or "e2ebucket"
 TRANSCRIBE_MODEL = "local" # or "gcs" or "e2ebucket"
+# Constants for audio file storage are now imported from model_request_helpers
+
 
 #TODO: Review and ensure a single place where temporary sound file is created, pass it's handle around everywhere. In case of sample - same thing 
 
@@ -53,6 +68,17 @@ elif CLOUD == "local":
 log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# Import clone client components
+try:
+    from audiocloneclient.client import AudioCloneClient
+    from audiocloneclient import clone_interface_pb2
+    from audiomessages import AudioMessage, Metadata
+    CLONE_CLIENT_AVAILABLE = True
+    logger.info("Clone client imported successfully")
+except ImportError as e:
+    CLONE_CLIENT_AVAILABLE = False
+    logger.warning(f"Clone client not available: {e}")
 
 app = FastAPI()
 security = HTTPBearer(auto_error=True)
@@ -461,68 +487,92 @@ async def get_voice_models(request: Request, bucket: str = None, auth_context: d
         raise HTTPException(status_code=500, detail=error_msg)
 
 
-async def is_valid_wav(file_storage, check_format=True):
+
+@app.post('/clone_voice')
+async def clone_voice(
+    request_audio: UploadFile = File(...),
+    request_text: str = Form(...),
+    sample_audio: UploadFile = File(...),
+    sample_text: str = Form(...),
+    model_name: str = Form(None),
+    auth_context: dict = Depends(get_auth_context)
+):
     """
-    Validates if the uploaded file is a valid WAV file with optional format validation.
+    Endpoint to clone voice using clone server on localhost.
     
     Args:
-        file_storage: FileStorage object from Flask request.files
-        check_format: If True, validates audio format (mono, 16kHz)
-        
+        request_audio: Audio file to be cloned (target speech)
+        request_text: Text transcript for the request audio (phrase to be cloned)
+        sample_audio: Sample audio file (source voice to clone from)
+        sample_text: Text transcript for the sample audio
+        model_name: Optional model name for cloning
+    
     Returns:
-        tuple: (is_valid: bool, error_message: str)
+        StreamingResponse with cloned audio data
     """
-    # Create a temporary file at the beginning
-    tmp_fd, tmp_wav_file = tempfile.mkstemp(suffix='.wav')
+    if not CLONE_CLIENT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Clone client not available")
+    
     try:
-        # Read the file content and write to temp file
-        file_content = await file_storage.read()
+        if not auth_context['authenticated']:
+            raise HTTPException(status_code=401, detail='Unauthorized')
         
-        # Check if the file is empty
-        if not file_content:
-            return False, "Empty file provided"
+        # Create and validate AudioMessage objects using wrapper
+        request_audio_message, _ = build_and_validate_audio_message(
+            audio_data=request_audio,
+            text=request_text,
+            file_name=None,
+            check_format=True
+        )
+        
+        sample_audio_message, _ = build_and_validate_audio_message(
+            audio_data=sample_audio,
+            text=sample_text,
+            file_name=None,
+            check_format=True
+        )
+        
+        logger.info(f"Processing clone request: {len(request_audio_message.audio_binary)} bytes request audio, {len(sample_audio_message.audio_binary)} bytes sample audio")
+        logger.info(f"Audio files: {request_audio_message.audio_file_path}, {sample_audio_message.audio_file_path}")
+        
+        # Create CloneRequest
+        clone_request = clone_interface_pb2.CloneRequest()
+        clone_request.request_audio_message.CopyFrom(request_audio_message)
+        clone_request.sample_audio_message.CopyFrom(sample_audio_message)
+        if model_name:
+            clone_request.model_name = model_name
+        
+        # Call clone server
+        with AudioCloneClient("localhost:50051") as client:
+            logger.info("Calling clone server at localhost:50051")
+            response = client.clone(clone_request)
             
-        # Write content to the temporary file
-        with os.fdopen(tmp_fd, 'wb') as f:
-            f.write(file_content)
-        
-        # First, try to validate as WAV using pydub
-        try:
-            audio = AudioSegment.from_file(tmp_wav_file, format="wav")
-            if len(audio) <= 0:
-                return False, "Audio file has zero duration"
-        except CouldntDecodeError:
-            return False, "File is not a valid WAV file"
-        
-        # Then perform format validation if requested
-        if check_format:
-            try:
-                # Validate WAV format using soundfile
-                audio_array, samplerate = sf.read(tmp_wav_file)      
-                # Check if audio is mono
-                if len(audio_array.shape) != 1:
-                    return False, "Audio must be mono"
-               # Check if sample rate is a valid number
-                if not isinstance(samplerate, (int, float)) or not (4000 <= samplerate <= 48000):
-                    return False, f"Invalid sample rate: {samplerate}. Must be a number between 4000 and 48000 Hz"
-               # Check for specific sample rate requirement
-                # if samplerate != 16000:
-                #     return False, f"Audio must be 16kHz (got {samplerate}Hz)"
-            except Exception as e:
-                return False, f"Error validating audio format: {str(e)}"
+            logger.info(f"Clone response received: {len(response.cloned_audio_message.audio_binary)} bytes")
+            if response.model_name:
+                logger.info(f"Model used: {response.model_name}")
+            if response.meta.status_code:
+                logger.info(f"Status code: {response.meta.status_code}")
             
-        return True, ""
-        
+            # Return cloned audio as streaming response
+            headers = {
+                'X-Model-Name': response.model_name or 'default',
+                'X-Status-Code': str(response.meta.status_code or 200),
+                'Content-Disposition': f'attachment; filename=cloned_{request_audio.filename}'
+            }
+            
+            return StreamingResponse(
+                BytesIO(response.cloned_audio_message.audio_binary),
+                media_type='audio/wav',
+                headers=headers
+            )
+                
+            
+    except grpc.RpcError as e:
+        logger.error(f"gRPC error during cloning: {e}")
+        raise HTTPException(status_code=503, detail=f"Clone server error: {e.details() if hasattr(e, 'details') else str(e)}")
     except Exception as e:
-        return False, f"Error processing audio file: {str(e)}"
-    finally:
-        # Clean up the temporary file
-        try:
-            os.unlink(tmp_wav_file)
-        except Exception:
-            pass
-        # Reset file pointer for any potential future use
-        await file_storage.seek(0)
+        logger.error(f'Error during voice cloning: {str(e)}', exc_info=True)
+        raise HTTPException(status_code=500, detail=f'Voice cloning failed: {str(e)}')
 
 
 if __name__ == "__main__":

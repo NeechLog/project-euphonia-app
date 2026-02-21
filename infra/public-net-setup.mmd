@@ -1,0 +1,51 @@
+graph TB
+    %% ===== LEFT COLUMN - VERTICAL STACK =====
+    subgraph LeftColumn[Infrastructure Config]
+        direction BT
+        DNS[DNS Configuration<br/>app.suvani.ai → CDN<br/>api.suvani.ai → CDN]
+        SSL[SSL Certificate<br/>*.suvani.ai Wildcard SSL<br/>CDN SSL Termination]
+    end
+
+    %% ===== MAIN COLUMN =====
+    subgraph MainColumn[Application Flow]
+        subgraph Clients
+            A[Android App]
+            B[Web Browser]
+        end
+
+        subgraph CDN[CDN Layer - CloudFront]
+            C[CDN Edge Location]
+            C1[Static Content]
+            C2[index.html]
+            C3[API - No Cache]
+        end
+
+        subgraph AppServer[Application Server]
+            W1[Static Files]
+            W2[index.html]
+            W3[API Proxy]
+            A1[FastAPI + AI Model]
+        end
+    end
+
+    %% ===== CONNECTIONS =====
+    DNS --> C
+    SSL --> C
+    SSL-->W3
+    
+    A --> C
+    B --> C
+    C --> C1
+    C --> C2
+    C --> C3
+    C1 --> W1
+    C2 --> W2
+    C3 --> W3
+    W3 --> A1
+
+    %% Styling
+    classDef leftCol fill:#f5f5f5,stroke:#666,stroke-width:2px
+    classDef mainCol fill:#ffffff,stroke:#333,stroke-width:1px
+    
+    class LeftColumn leftCol
+    class MainColumn mainCol
