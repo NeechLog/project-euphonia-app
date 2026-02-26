@@ -28,19 +28,12 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "passlib[bcrypt]>=1.7.4",
     # Audio Processing
-    "numpy>=1.24.0,<2.0.0", # Pinned to be compatible with PyTorch 2.1.0
-    "torch==2.1.0",
-    "torchvision==0.16.0",
-    "torchaudio==2.1.0",
+    "numpy>=1.24.0,<2.0.0",
     "soundfile>=0.12.1",
     "librosa>=0.10.0",
     "webrtcvad>=2.0.10",
     "pydub>=0.25.1",
     "ffmpeg-python>=0.2.0",
-    "nemo-toolkit[asr]>=2.5.1",
-    "nari-tts",
-    "openai-whisper>=20231117",
-    "faster-whisper>=0.9.0",
     # Google Cloud
     "google-cloud-aiplatform>=1.60.0",
     "google-cloud-speech>=2.21.0",
@@ -63,8 +56,9 @@ dependencies = [
     "grpcio>=1.50.0",
     "grpcio-tools>=1.50.0",
     # Local package dependencies
-    "AudioMessages @file:///home/jovyan/voice_assist/packages/audiomessages",
-    # "../packages/audiocloneclient",
+    "AudioMessages",
+    "TranscribeClient",
+    "AudioCloneClient",
 ]
 
 [tool.setuptools.packages.find]
@@ -84,29 +78,12 @@ Documentation = "https://github.com/yourusername/euphonia-voice-assist#readme"
 Issues = "https://github.com/yourusername/euphonia-voice-assist/issues"
 Source = "https://github.com/yourusername/euphonia-voice-assist"
 
-[[tool.uv.index]]
-name="pytorch"
-url="https://download.pytorch.org/whl/cu124"
-explicit=true
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
-default=true
 
 [tool.uv.sources]
-nari-tts = { git = "https://github.com/nari-labs/dia.git" }
-torch = [{ index = "pytorch" }]
-torchaudio = [{ index = "pytorch" }]
-[tool.uv]
-override-dependencies = [
-    # This instructs uv to ignore the version requirement for these packages
-    # when they come up as transitive dependencies
-    "torch",
-    "torchaudio",
-    "protobuf<4.0.0",
-    "numpy<2.0.0"
-]
+AudioMessages = { path = "../packages/audiomessages", editable = true }
+TranscribeClient = { path = "../packages/transcribeclient", editable = true }
+AudioCloneClient = { path = "../packages/audiocloneclient", editable = true }
+
 
 [project.optional-dependencies]
 # Development dependencies
@@ -220,23 +197,8 @@ audio = [
     "webrtcvad>=2.0.10",
     "pydub>=0.25.1",
     "ffmpeg-python>=0.2.0",
-    "torchaudio>=2.8.0",
 ]
 
-# Machine learning extras
-ml = [
-    "torch>=2.8.0",
-    "torchvision>=0.15.0",
-    "torchaudio>=2.8.0",
-    "transformers>=4.30.0",
-    "datasets>=2.12.0",
-    "evaluate>=0.4.0",
-    "accelerate>=0.20.0",
-    "optuna>=3.1.0",
-    "wandb>=0.15.0",
-    "tensorboard>=2.12.0",
-    "mlflow>=2.3.0",
-]
 
 # Google Cloud extras
 gcp = [
@@ -252,13 +214,19 @@ gcp = [
 dev-all = [
     "euphonia-voice-assist[dev]",
     "euphonia-voice-assist[audio]",
-    "euphonia-voice-assist[ml]",
     "euphonia-voice-assist[gcp]",
 ]
 
 [build-system]
 requires = ["setuptools>=61.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=1.3.0",
+    "pytest-cov>=7.0.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

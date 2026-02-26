@@ -3,6 +3,8 @@ from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, Dep
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from typing import Union
+import grpc
 import os
 import tempfile
 import soundfile as sf
@@ -12,6 +14,8 @@ from io import BytesIO
 import numpy as np
 import io
 import subprocess
+
+from urllib3 import request
 import ffmpeg
 import sys
 from pathlib import Path
@@ -19,17 +23,14 @@ import tempfile
 import os
 import shutil
 
-# Import model request helpers
-from model_request_helpers import (
-    validate_audio_format_from_file,
-    validate_audio_format,
-    build_and_validate_audio_message,
-    build_audio_message,
-    validate_audio_message,
-    is_valid_wav,
-    TEMP_AUDIO_DIR,
-    GOOD_AUDIO_DIR
-)
+# Import clone client components
+from audiocloneclient.client import AudioCloneClient
+from audiocloneclient import clone_interface_pb2
+from audiomessages import AudioMessage, ProcessingMetadata
+
+# Import transcribe client components
+from transcribeclient.client import TranscribeClient
+from transcribeclient import transcribe_interface_pb2
 
 # Add adapter directories to Python path
 api_dir = Path(__file__).parent
@@ -37,32 +38,34 @@ sys.path.append(str(api_dir / 'local_adapter'))
 sys.path.append(str(api_dir / 'gcloudAdapter'))
 sys.path.append(str(api_dir / 'e2ecloudAdapter'))
 
+# Import model request helpers
+from api.model_local_file_request_helper import (
+    validate_audio_format_from_file,
+    validate_audio_format,
+    build_and_validate_audio_message,
+    build_raw_audio_message,
+    validate_audio_message,
+    is_valid_wav,
+    TEMP_AUDIO_DIR,
+    GOOD_AUDIO_DIR
+)
+
 # Default constants
-DEFAULT_HASH_ID = "default_user_123"
-DEFAULT_BUCKET = "/home/jovyan/voice_assist/prod/voice_sample" #"euphonia-dia"
+DEFAULT_HASH_ID = os.getenv('DEFAULT_HASH_ID', 'default_user_123')
+DEFAULT_BUCKET = os.getenv('DEFAULT_BUCKET', '/home/jovyan/voice_assist/prod/voice_sample')
 STORAGE = "local" # or "gcs" or "e2ebucket"
-TRANSCRIBE_MODEL = "local" # or "gcs" or "e2ebucket"
 # Constants for audio file storage are now imported from model_request_helpers
 
 
 #TODO: Review and ensure a single place where temporary sound file is created, pass it's handle around everywhere. In case of sample - same thing 
 
-if(TRANSCRIBE_MODEL == "local"):
-    from local_adapter.local_model_parakeet import transcribe_voice as transcribe_voice
-# Storage and voice
 if(STORAGE == "gcs"):
-    from gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
+    from api.gcloudAdapter.gcp_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="e2ebucket"):
-    from e2ecloudAdapter.e2e_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
+    from api.e2ecloudAdapter.e2e_storage import upload_or_update_data_gcs as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
 elif(STORAGE=="local"):
-    from local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
-CLOUD = "local"
-if CLOUD == "gcs":
-    # Ensure you have authenticated with GCP, e.g., via `gcloud auth application-default login`
-    # or by setting the GOOGLE_APPLICATION_CREDENTIALS environment variable.
-    from gcloudAdapter.gcp_models import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
-elif CLOUD == "local":
-    from local_adapter.local_model import synthesize_speech_with_cloned_voice, call_vertex_Dia_model as call_voice_model
+    from api.local_adapter.local_storage import upload_or_update_data_local as upload_or_update_data, get_oldest_training_data, list_all_hash_identifiers
+
 
 
 # Configure logging from environment variable
@@ -70,16 +73,42 @@ log_level = os.getenv('PYTHON_LOG_LEVEL', 'DEBUG').upper()
 logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Import clone client components
-try:
-    from audiocloneclient.client import AudioCloneClient
-    from audiocloneclient import clone_interface_pb2
-    from audiomessages import AudioMessage, Metadata
-    CLONE_CLIENT_AVAILABLE = True
-    logger.info("Clone client imported successfully")
-except ImportError as e:
-    CLONE_CLIENT_AVAILABLE = False
-    logger.warning(f"Clone client not available: {e}")
+# Default locale from environment variable
+DEFAULT_LOCALE = os.getenv('DEFAULT_LOCALE', 'en-US')
+
+def get_locale_from_request(request: Request) -> str:
+    """
+    Extract locale from request headers with fallback hierarchy:
+    1. X-Request-Locale header
+    2. Accept-Language header (first language)
+    3. DEFAULT_LOCALE environment variable
+    
+    Args:
+        request: FastAPI Request object
+        
+    Returns:
+        str: Locale string (e.g., 'en-US', 'hi-IN')
+    """
+    # Try X-Request-Locale header first
+    locale = request.headers.get("X-Request-Locale")
+    if locale:
+        return locale
+    
+    # Fall back to Accept-Language header
+    accept_language = request.headers.get("Accept-Language")
+    if accept_language:
+        # Parse Accept-Language header and take the first language
+        # Format: "en-US,en;q=0.9,hi;q=0.8"
+        languages = accept_language.split(',')
+        if languages:
+            primary_lang = languages[0].strip()
+            # Remove quality values if present (e.g., "en-US;q=0.9")
+            if ';' in primary_lang:
+                primary_lang = primary_lang.split(';')[0].strip()
+            return primary_lang
+    
+    # Final fallback to default
+    return DEFAULT_LOCALE
 
 app = FastAPI()
 security = HTTPBearer(auto_error=True)
@@ -87,10 +116,10 @@ logger.debug('Starting FastAPI server')
 # Serve static files from the 'web' directory
 import os
 from pathlib import Path
-from oauth.google_stateless import router as google_auth_router
-from oauth.apple_stateless import router as apple_auth_router
-from oauth.routes import router as login_router
-from auth_util import auth_router,get_auth_context
+from api.oauth.google_stateless import router as google_auth_router
+from api.oauth.apple_stateless import router as apple_auth_router
+from api.oauth.routes import router as login_router
+from api.auth_util import auth_router,get_auth_context
 
 # Get the absolute path to the web directory
 web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'web')
@@ -106,7 +135,7 @@ for route in app.routes:
 from fastapi import HTTPException
 
 @app.post('/process_audio')
-async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID)):
+async def process_audio(request: Request, audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID), model_name: str = Form(None)):
     """
     Endpoint to receive an audio file and stream it back.
     Accepts a WAV file in the 'wav' form field.
@@ -119,10 +148,10 @@ async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form
             raise HTTPException(status_code=400, detail='Invalid file type, must be .wav')
 
         logger.info(f'Processing audio file: {audio.filename}')
-        
+        locale = get_locale_from_request(request)
         transcribe_result = "Basically default transcription result, this should never appear, unless audio check failed. did you hear any thing?"
         try:
-            transcribe_result = await _transcribe_audio_file(audio)
+            transcribe_result = await _transcribe_audio_file(audio, locale, model_name)
         except HTTPException as he:
             logger.error(f"HTTP error during transcription: {str(he.detail)}")
             transcribe_result = f"Error during transcription: {he.detail}"
@@ -140,63 +169,41 @@ async def process_audio(audio: UploadFile = File(...), hashVoiceName: str = Form
         # Initialize with default values
         voice_url = None
         oldest_text = ""
-        voice_data = None
         if training_data:
             oldest_text = training_data['text']
             voice_url = training_data['voice_url']
 
-        
-        # Create a generator to stream the synthesized audio
-        def generate():
-            try:
-                logger.info("Attempting to synthesize speech with cloned voice...")
-                logger.debug(f"Using voice URL: {voice_url}")
-                logger.debug(f"Using training text: {oldest_text[:100]}..." if oldest_text else "No training text provided")
-                if(training_data):
-                    # Call the synthesis function
-                    voice_data = synthesize_speech_with_cloned_voice(
-                        text_to_synthesize=transcribe_result,
-                        clone_from_audio_gcs_url=voice_url,
-                        clone_from_text_transcript=oldest_text
-                    )
-                else:
-                    voice_data  = call_voice_model(
-                        input_text=transcribe_result
-                    )
-                
-                if voice_data:
-                    logger.debug(f'Starting audio file streaming, size: {len(voice_data)} bytes')
-                    yield voice_data
-                else:
-                    logger.warning("No voice data received from synthesis.")
-                    yield b''
-            except Exception as e:
-                logger.error(f"Synthesis failed: {str(e)}", exc_info=True)
-                yield b''
-        
-        # Create headers with the transcription result
-        headers = {
-            'X-Response-Text': str(transcribe_result),
-            'Content-Disposition': f'attachment; filename=processed_{audio.filename}'
-        }
-        
-        # Return the synthesized audio as a stream
-        return StreamingResponse(
-            generate(),
-            media_type='audio/wav',
-            headers=headers
-        )
+        if(training_data):
+            # Download audio from voice_url and prepare for clone_voice
+            if voice_url.startswith('file://'):
+                # Local file URL - pass file path directly
+                file_path = voice_url.replace('file://', '')
+                sample_audio_binary = file_path
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported URL format for sample_audio")
+            
+            # Call the clone_voice function and return its response directly
+            return await clone_voice(
+                request_text=transcribe_result,
+                sample_audio=sample_audio_binary,
+                sample_text=oldest_text,
+                model_name=model_name,
+                locale=locale,
+                auth_context={'authenticated': True, 'is_Admin': True}
+            )
         
     except Exception as e:
         logger.error(f'Error processing audio: {str(e)}', exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _transcribe_audio_file(audio_file):
-    """Helper method to handle audio file transcription with temporary file management.
+async def _transcribe_audio_file(audio_file, locale, model_name=None):
+    """Helper method to handle audio file transcription using transcribeclient gRPC service.
     
     Args:
         audio_file: The uploaded file object (FastAPI's UploadFile)
+        locale: Locale for transcription
+        model_name: Optional model name to use for transcription
         
     Returns:
         str: The transcription result
@@ -204,50 +211,42 @@ async def _transcribe_audio_file(audio_file):
     Raises:
         HTTPException: If the audio file is invalid or there's an error during transcription
     """
-    # Validate the audio file first
-    is_valid, error_msg = await is_valid_wav(audio_file, check_format=True)
-    if not is_valid:
-        logger.error(f"Invalid audio file: {error_msg}")
-        raise HTTPException(status_code=400, detail=f"Invalid audio file: {error_msg}")
     
-    # Reset file pointer after validation
-    await audio_file.seek(0)
-    
-    # Create a temporary file with a .wav extension
-    with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as temp_audio:
-        try:
-            # Read the uploaded file content
-            contents = await audio_file.read()
+    try:
+        # Read the uploaded file content
+        contents = await audio_file.read()
+        audio_message, _ = build_and_validate_audio_message(contents, None, locale=locale)        
+        # Create TranscribeRequest
+        transcribe_request = transcribe_interface_pb2.TranscribeRequest()
+        transcribe_request.input.CopyFrom(audio_message)
+        if model_name:
+            transcribe_request.model_name = model_name
+        
+        # Make gRPC call to transcribe service
+        with TranscribeClient("localhost:50062") as client:
+            logger.info("Calling transcribe server at localhost:50062")
+            response = client.transcribe(transcribe_request)
             
-            # Write the content to the temporary file
-            temp_audio.write(contents)
-            
-            # Ensure the file is written to disk
-            temp_audio.flush()
-            os.fsync(temp_audio.fileno())
-            
-            # Transcribe the audio file
-            return transcribe_voice(temp_audio.name)
-            
-        finally:
-            # Always clean up the temporary file
-            try:
-                os.unlink(temp_audio.name)
-            except Exception as e:
-                logger.warning(f"Could not delete temporary file {temp_audio.name}: {str(e)}")
+            # Extract transcription from response
+            if response.output and response.output.text:
+                logger.info(f"Transcription successful: {response.output.text[:100]}...")
+                return response.output.text
+            else:
+                logger.warning("Transcription response empty")
+                return "Transcription failed: Empty response"
+                
+    except Exception as e:
+        logger.error(f"Error during transcription: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 @app.post('/transcribe')
 async def transcribe(wav: UploadFile = File(...)):
-    if(is_valid_wav(wav)):
-        pred = await _transcribe_audio_file(wav)
-    else:
-        pred = "Invalid WAV file"
-
+    locale = get_locale_from_request(request)
+    pred = await _transcribe_audio_file(wav, locale)
     return {'response': 'success!', 'transcript': pred}
 
-
 @app.post('/gendia')
-async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sample_voice: UploadFile = File(None), hash_id: str = Form(DEFAULT_HASH_ID)):
+async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sample_voice: UploadFile = File(None), hash_id: str = Form(DEFAULT_HASH_ID), locale: str = Form(DEFAULT_LOCALE), model_name: str = Form(None), auth_context: dict = Depends(get_auth_context)):
     training_data = None
     try:
         # Required parameter
@@ -273,20 +272,38 @@ async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sampl
         if error:
             raise HTTPException(status_code=400, detail=error)
         
-        voice_data = synthesize_speech_with_cloned_voice(
-                    text_to_synthesize=phrase,
-                    clone_from_audio_gcs_url=training_data['voice_url'],
-                    clone_from_text_transcript=training_data['text']
+         # Handle sample_audio: use provided sample_voice or download from voice_url
+        if sample_voice:
+            # Use the sample_voice that was uploaded in the request
+            sample_audio_binary = sample_voice
+            logger.info(f"Using provided sample voice file: {sample_voice.filename}")
+        else:
+            # Handle sample_audio from voice_url (could be GCS URL or local file URL)
+            voice_url = training_data['voice_url']
+            logger.info(f"Loading sample audio from voice_url: {voice_url}")
+            
+            if voice_url.startswith('file://'):
+                # Local file URL - read directly
+                sample_audio_binary = voice_url
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported URL format for sample_audio")        
+
+        return await clone_voice(
+                    request_text=phrase,
+                    sample_audio = sample_audio_binary,
+                    sample_text=training_data['text'],
+                    model_name=model_name,
+                    locale=locale,
+                    auth_context=auth_context
                 )
-        return StreamingResponse(BytesIO(voice_data), media_type='audio/wav')
     except Exception as e:
         logger.error(f'Error processing gendia request: {str(e)}', exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         if training_data and '_temp_file' in training_data and os.path.exists(training_data['_temp_file']):
             try:
-               # os.unlink(training_data['_temp_file'])
-                logger.info(f'did not Cleaned up temporary file: {training_data["_temp_file"]}')
+                os.unlink(training_data['_temp_file'])
+                logger.info(f'Cleaned up temporary file: {training_data["_temp_file"]}')
             except Exception as e:
                 logger.error(f'Error cleaning up temporary file: {str(e)}')
 
@@ -491,48 +508,46 @@ async def get_voice_models(request: Request, bucket: str = None, auth_context: d
 
 @app.post('/clone_voice')
 async def clone_voice(
-    request_audio: UploadFile = File(...),
     request_text: str = Form(...),
-    sample_audio: UploadFile = File(...),
+    sample_audio: Union[UploadFile, bytes] = File(...),
     sample_text: str = Form(...),
     model_name: str = Form(None),
+    locale: str = Form(DEFAULT_LOCALE),
     auth_context: dict = Depends(get_auth_context)
 ):
     """
     Endpoint to clone voice using clone server on localhost.
     
     Args:
-        request_audio: Audio file to be cloned (target speech)
         request_text: Text transcript for the request audio (phrase to be cloned)
-        sample_audio: Sample audio file (source voice to clone from)
+        sample_audio: Sample audio file (source voice to clone from) - can be UploadFile or bytes
         sample_text: Text transcript for the sample audio
         model_name: Optional model name for cloning
-    
+        locale: Locale for the audio processing
+        auth_context: Authentication context
+        
     Returns:
         StreamingResponse with cloned audio data
     """
-    if not CLONE_CLIENT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Clone client not available")
-    
-    try:
-        if not auth_context['authenticated']:
-            raise HTTPException(status_code=401, detail='Unauthorized')
-        
+    try:        
         # Create and validate AudioMessage objects using wrapper
-        request_audio_message, _ = build_and_validate_audio_message(
-            audio_data=request_audio,
-            text=request_text,
-            file_name=None,
-            check_format=True
-        )
+        # No need to validate request audio as for cloning we do not have it. 
+        request_audio_message, _ = build_and_validate_audio_message(None, text=request_text, locale=locale)
+        # TODO:somehow we need to validate if sample audio is local i.e. not with request. and hence pass file path directly
+        # Determine file name if sample_audio is not binary
+        file_name = None
+        if not isinstance(sample_audio, bytes):
+            # If it's a string (file path), use the full path as file_name
+            if isinstance(sample_audio, str):
+                file_name = sample_audio
         
         sample_audio_message, _ = build_and_validate_audio_message(
             audio_data=sample_audio,
             text=sample_text,
-            file_name=None,
-            check_format=True
-        )
-        
+            file_name=file_name,
+            check_format=True,
+            locale=locale
+        )      
         logger.info(f"Processing clone request: {len(request_audio_message.audio_binary)} bytes request audio, {len(sample_audio_message.audio_binary)} bytes sample audio")
         logger.info(f"Audio files: {request_audio_message.audio_file_path}, {sample_audio_message.audio_file_path}")
         
@@ -549,16 +564,15 @@ async def clone_voice(
             response = client.clone(clone_request)
             
             logger.info(f"Clone response received: {len(response.cloned_audio_message.audio_binary)} bytes")
-            if response.model_name:
-                logger.info(f"Model used: {response.model_name}")
-            if response.meta.status_code:
-                logger.info(f"Status code: {response.meta.status_code}")
+            if response.processing_meta and response.processing_meta.status_code:
+                logger.info(f"Status code: {response.processing_meta.status_code}")
             
             # Return cloned audio as streaming response
             headers = {
-                'X-Model-Name': response.model_name or 'default',
-                'X-Status-Code': str(response.meta.status_code or 200),
-                'Content-Disposition': f'attachment; filename=cloned_{request_audio.filename}'
+                'X-Response-Text': request_text,
+                'X-Model-Name': model_name if model_name else 'Vibe/Dia',
+                'X-Status-Code': str(response.processing_meta.status_code if response.processing_meta and response.processing_meta.status_code else 200),
+                'Content-Disposition': f'attachment; filename=cloned_{request_audio_message.audio_file_path if request_audio_message.audio_file_path else hash(request_text)}.wav'
             }
             
             return StreamingResponse(

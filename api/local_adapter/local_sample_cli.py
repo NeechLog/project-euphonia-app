@@ -45,7 +45,7 @@ from local_model import (
 )
 
 # Default configuration
-DEFAULT_BASE_DIR = os.path.join(os.path.dirname(__file__), "..", "/Users/gagan/projects/work/samples/")
+DEFAULT_BASE_DIR = os.getenv('DEFAULT_BASE_DIR', os.path.join(os.path.dirname(__file__), "..", "/Users/gagan/projects/work/samples/"))
 
 def upload_sample_pair(
     base_dir: str,

@@ -14,7 +14,7 @@ import daemon.pidfile
 from pathlib import Path
 from uvicorn.config import Config
 from uvicorn import Server
-from api.uvicorn_config import UVICORN_CONFIG, get_pid_file_path
+from api.uvicorn_config import UVICORN_CONFIG, get_pid_file_path, LOG_DIR
 from api.oauth import init_auth_config
 from api.auth_util import generate_jwt_token, client_provided_storage_callback, extract_user_client_info, generate_auth_cookies, delete_auth_cookies
 
@@ -144,9 +144,7 @@ def run_uvicorn():
         print(f"AuthConfig initialized successfully: {auth_config}")
         
         # Set up logging
-        log_dir = Path('logs')
-        log_dir.mkdir(exist_ok=True)
-        log_file = log_dir / 'uvicorn.log'
+        log_file = LOG_DIR / 'uvicorn.log'
         
         # Configure Uvicorn
         config = Config(
@@ -195,14 +193,12 @@ def start_server(background=True):
     if background:
         print("🚀 Starting server in background...")
         
-        # Set up working directory
-        working_dir = str(Path(__file__).parent.absolute())
+        # Set up working directory (project root, not api directory)
+        working_dir = str(Path(__file__).parent.parent.absolute())
         
-        # Set up log files
-        log_dir = Path('logs')
-        log_dir.mkdir(exist_ok=True)
-        stdout_log = str(log_dir / 'uvicorn_stdout.log')
-        stderr_log = str(log_dir / 'uvicorn_stderr.log')
+        # Set up log files using centralized LOG_DIR
+        stdout_log = str(LOG_DIR / 'uvicorn_stdout.log')
+        stderr_log = str(LOG_DIR / 'uvicorn_stderr.log')
         
         # Open file handles for logging
         stdout_fd = open(stdout_log, 'a+')
@@ -241,7 +237,7 @@ def start_server(background=True):
         print(f"🌐 Access URL: http://{UVICORN_CONFIG['host']}:{UVICORN_CONFIG['port']}")
         print(f"👥 Workers: {UVICORN_CONFIG.get('workers', 1)}")
         print(f"📄 PID file: {os.path.abspath(pid_file)}")
-        print(f"📝 Logs: {os.path.abspath(log_dir)}/uvicorn_*.log")
+        print(f"📝 Logs: {LOG_DIR}/uvicorn_*.log")
         print("\nTo stop the server, run:")
         print(f"  kill $(cat {pid_file})  # or use the stop_server.py script")
     

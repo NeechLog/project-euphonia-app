@@ -60,7 +60,7 @@ except Exception as e:
     endpoint = None
 
 # Default configuration
-DEFAULT_BUCKET = "euphonia-dia"
+DEFAULT_BUCKET = os.getenv('DEFAULT_BUCKET', 'euphonia-dia')
 ENV_BUCKET_VAR = "EUPHONIA_DIA_GCS_BUCKET"
 
 def ensure_gcloud_credentials() -> bool:

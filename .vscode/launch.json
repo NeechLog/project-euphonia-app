@@ -194,6 +194,20 @@
             ],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "Euphonia Serve Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/api/start_server.py",
+            "args": [
+                "--foreground"
+            ],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
         }
     ],
     "inputs": [
