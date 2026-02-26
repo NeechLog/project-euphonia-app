@@ -240,9 +240,8 @@ async def _transcribe_audio_file(audio_file, locale, model_name=None):
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 @app.post('/transcribe')
-async def transcribe(wav: UploadFile = File(...)):
-    locale = get_locale_from_request(request)
-    pred = await _transcribe_audio_file(wav, locale)
+async def transcribe(wav: UploadFile = File(...), locale: str = Form(DEFAULT_LOCALE), model_name: str = Form(None)):
+    pred = await _transcribe_audio_file(wav, locale, model_name)
     return {'response': 'success!', 'transcript': pred}
 
 @app.post('/gendia')
@@ -568,11 +567,16 @@ async def clone_voice(
                 logger.info(f"Status code: {response.processing_meta.status_code}")
             
             # Return cloned audio as streaming response
+            # Generate a safe filename for the header
+            import re
+            safe_filename = re.sub(r'[^\w\-_\.]', '_', request_text[:50]) if request_text else 'cloned_audio'
+            # Sanitize request_text for HTTP header by removing control characters and limiting length
+            safe_response_text = re.sub(r'[\x00-\x1F\x7F]', '', request_text[:200]) if request_text else ''
             headers = {
-                'X-Response-Text': request_text,
+                'X-Response-Text': safe_response_text,
                 'X-Model-Name': model_name if model_name else 'Vibe/Dia',
                 'X-Status-Code': str(response.processing_meta.status_code if response.processing_meta and response.processing_meta.status_code else 200),
-                'Content-Disposition': f'attachment; filename=cloned_{request_audio_message.audio_file_path if request_audio_message.audio_file_path else hash(request_text)}.wav'
+                'Content-Disposition': f'attachment; filename={safe_filename}.wav'
             }
             
             return StreamingResponse(
