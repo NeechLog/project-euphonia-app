@@ -110,6 +110,11 @@ def get_locale_from_request(request: Request) -> str:
     # Final fallback to default
     return DEFAULT_LOCALE
 
+# FastAPI dependency for locale
+async def get_locale(request: Request) -> str:
+    """FastAPI dependency to extract locale from request"""
+    return get_locale_from_request(request)
+
 app = FastAPI()
 security = HTTPBearer(auto_error=True)
 logger.debug('Starting FastAPI server')
@@ -135,7 +140,7 @@ for route in app.routes:
 from fastapi import HTTPException
 
 @app.post('/process_audio')
-async def process_audio(request: Request, audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID), model_name: str = Form(None)):
+async def process_audio(request: Request, audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID), model_name: str = Form(None), locale: str = Depends(get_locale)):
     """
     Endpoint to receive an audio file and stream it back.
     Accepts a WAV file in the 'wav' form field.
@@ -148,7 +153,6 @@ async def process_audio(request: Request, audio: UploadFile = File(...), hashVoi
             raise HTTPException(status_code=400, detail='Invalid file type, must be .wav')
 
         logger.info(f'Processing audio file: {audio.filename}')
-        locale = get_locale_from_request(request)
         transcribe_result = "Basically default transcription result, this should never appear, unless audio check failed. did you hear any thing?"
         try:
             transcribe_result = await _transcribe_audio_file(audio, locale, model_name)
@@ -240,12 +244,19 @@ async def _transcribe_audio_file(audio_file, locale, model_name=None):
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
 @app.post('/transcribe')
-async def transcribe(wav: UploadFile = File(...), locale: str = Form(DEFAULT_LOCALE), model_name: str = Form(None)):
+async def transcribe(wav: UploadFile = File(...), 
+                        locale: str = Depends(get_locale), 
+                        model_name: str = Form(None)):
     pred = await _transcribe_audio_file(wav, locale, model_name)
     return {'response': 'success!', 'transcript': pred}
 
 @app.post('/gendia')
-async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), sample_voice: UploadFile = File(None), hash_id: str = Form(DEFAULT_HASH_ID), locale: str = Form(DEFAULT_LOCALE), model_name: str = Form(None), auth_context: dict = Depends(get_auth_context)):
+async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), 
+                    sample_voice: UploadFile = File(None), 
+                    hash_id: str = Form(DEFAULT_HASH_ID), 
+                    locale: str = Depends(get_locale), model_name: 
+                    str = Form(None), auth_context: 
+                    dict = Depends(get_auth_context)):
     training_data = None
     try:
         # Required parameter

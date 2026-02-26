@@ -73,7 +73,7 @@ class OAuthProvider:
         self.storage_func = storage_func
         self.client_user_info_func = user_info_func
         self.cookie_generator_func = cookie_generator_func
-        self.templates = Jinja2Templates(directory="web/auth")
+        self.templates = Jinja2Templates(directory="api/web/auth")
     
     def _normalize_platform(self, platform: Optional[str]) -> str:
         """Normalize platform name to lowercase, defaulting to 'web'."""
