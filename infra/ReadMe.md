@@ -21,7 +21,8 @@
    sudo mkdir -p /var/run/nginx/client_body_temp
    sudo chown -R www-data:www-data /var/run/nginx
    sudo chown -R www-data:www-data /var/run/nginx/client_body_temp
-   
+   sudo chown -R www-data:www-data /var/lib/nginx
+   sudo chown -R www-data:www-data /var/log/nginx
    # Ensure Nginx can read its configuration
    sudo chmod -R o+r /etc/nginx
    
@@ -40,12 +41,23 @@
    ```
    Note: You'll need to re-run this if you update Nginx.
 
+6. Set up nginx to pick up our infrastructure files:
+   ```bash
+   sudo cp infra/nginx-conf/suvani.xyz.conf /etc/nginx/sites-available/suvani.xyz.conf
+   sudo ln -s /etc/nginx/sites-available/suvani.xyz.conf /etc/nginx/sites-enabled/suvani.xyz.conf
+   ```
+
+7. Set up certificate:
+   ```bash
+   sudo cp infra/nginx-conf/ssl/ /etc/nginx/ssl/
+   sudo chown -R www-data:www-data /etc/nginx/ssl
+   ```
+
 ## Starting the Service
 
 1. Start s6-supervise for Nginx:
    ```bash
-   s6-svscan /etc/services.d &
-   s6-svc -u /etc/services.d/nginx
+   s6-svscan /etc/services.d & s6-svc -u /etc/services.d/nginx
    ```
 
 2. Verify Nginx is running:
