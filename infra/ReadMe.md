@@ -7,6 +7,7 @@
    ```bash
    sudo mkdir -p /etc/services.d/nginx/log
    sudo mkdir -p /etc/nginx/conf.d
+   mkdir -p /etc/services.d/nginx
    ```
 
 2. Copy s6 service files:
@@ -43,21 +44,23 @@
 
 6. Set up nginx to pick up our infrastructure files:
    ```bash
-   sudo cp infra/nginx-conf/suvani.xyz.conf /etc/nginx/sites-available/suvani.xyz.conf
+   sudo cp infra/nginx-conf/sites-available/* /etc/nginx/sites-available/
    sudo ln -s /etc/nginx/sites-available/suvani.xyz.conf /etc/nginx/sites-enabled/suvani.xyz.conf
    ```
 
 7. Set up certificate:
+ get the actual certificate from the gdrive and place it in the ssl directory
    ```bash
-   sudo cp infra/nginx-conf/ssl/ /etc/nginx/ssl/
+   sudo mkdir -p /etc/nginx/ssl
    sudo chown -R www-data:www-data /etc/nginx/ssl
+
    ```
 
 ## Starting the Service
 
 1. Start s6-supervise for Nginx:
    ```bash
-   s6-svscan /etc/services.d & s6-svc -u /etc/services.d/nginx
+    s6-svc -u /etc/services.d/nginx
    ```
 
 2. Verify Nginx is running:
