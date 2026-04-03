@@ -82,3 +82,11 @@ tail -f /var/log/nginx/access.log
 - Restart Nginx: `s6-svc -r /etc/services.d/nginx`
 - Stop Nginx: `s6-svc -d /etc/services.d/nginx`
 - Check status: `s6-svstat /etc/services.d/nginx`
+
+## Prerequisites
+
+- The `ngx_http_realip_module` is required for Cloudflare real IP restoration (`set_real_ip_from` / `real_ip_header` directives). Verify it's available:
+  ```bash
+  nginx -V 2>&1 | grep realip
+  ```
+  It's included by default in most distributions. If missing, you'll need to recompile Nginx with `--with-http_realip_module`.
