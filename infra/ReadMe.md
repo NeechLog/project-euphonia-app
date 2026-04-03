@@ -45,6 +45,7 @@
 6. Set up nginx to pick up our infrastructure files:
    ```bash
    sudo cp infra/nginx-conf/sites-available/* /etc/nginx/sites-available/
+   sudo ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
    sudo ln -s /etc/nginx/sites-available/suvani.xyz.conf /etc/nginx/sites-enabled/suvani.xyz.conf
    ```
 
