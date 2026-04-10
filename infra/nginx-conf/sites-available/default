@@ -4,17 +4,11 @@ server {
     ssl_certificate     /etc/nginx/ssl/origin.pem;
     ssl_certificate_key /etc/nginx/ssl/origin.key;
 
-    error_page 400 401 403 404 405 408 413 414 431 = @drop;
-    location @drop { return 444; }
-
     return 444;
 }
 
 server {
     listen 80 default_server;
-
-    error_page 400 401 403 404 405 408 413 414 431 = @drop;
-    location @drop { return 444; }
 
     return 444;
 }

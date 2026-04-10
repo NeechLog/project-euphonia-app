@@ -129,6 +129,7 @@ Run nginx directly from the command line instead of through s6-supervise.
    ```bash
    sudo cp infra/nginx-conf/nginx.conf /etc/nginx/nginx.conf
    sudo cp infra/nginx-conf/sites-available/* /etc/nginx/sites-available/
+   sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
    sudo ln -sf /etc/nginx/sites-available/suvani.xyz.conf /etc/nginx/sites-enabled/suvani.xyz.conf
    ```
 
