@@ -3,7 +3,6 @@ from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form, Dep
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Union
 import grpc
 import os
 import tempfile
@@ -140,7 +139,7 @@ for route in app.routes:
 from fastapi import HTTPException
 
 @app.post('/process_audio')
-async def process_audio(request: Request, audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID), model_name: str = Form(None), locale: str = Depends(get_locale)):
+async def process_audio(request: Request, audio: UploadFile = File(...), hashVoiceName: str = Form(DEFAULT_HASH_ID), model_name: str | None = Form(None), locale: str = Depends(get_locale)):
     """
     Endpoint to receive an audio file and stream it back.
     Accepts a WAV file in the 'wav' form field.
@@ -157,31 +156,26 @@ async def process_audio(request: Request, audio: UploadFile = File(...), hashVoi
         try:
             transcribe_result = await _transcribe_audio_file(audio, locale, model_name)
         except HTTPException as he:
-            logger.error(f"HTTP error during transcription: {str(he.detail)}")
+            logger.error(f"HTTP error during transcription: {he.detail}")
             transcribe_result = f"Error during transcription: {he.detail}"
         except Exception as e:
             logger.error(f"Unexpected error during transcription: {str(e)}", exc_info=True)
             transcribe_result = "An unexpected error occurred during transcription. Please check logs"
 
         # Get the oldest training data for the default user
-        bucket_name = DEFAULT_BUCKET if os.environ.get("EUPHONIA_DIA_GCS_BUCKET") is None else os.environ.get("EUPHONIA_DIA_GCS_BUCKET")
+        bucket_name: str = os.environ.get("EUPHONIA_DIA_GCS_BUCKET") or DEFAULT_BUCKET      
         # TODO: a case could be made to pick the latest cloned sample, after all why save them? but right now going with oldest. 
         # TODO: Also eventually the hash would be of current user and not default. That will need fix in train_audio as well.
         logger.info(f"Looking for text and voice sample for {hashVoiceName}")
         training_data = get_oldest_training_data(bucket_name, hashVoiceName)
         logger.debug(f"Found text and voice sample for {hashVoiceName}")
-        # Initialize with default values
-        voice_url = None
-        oldest_text = ""
         if training_data:
-            oldest_text = training_data['text']
-            voice_url = training_data['voice_url']
-
-        if(training_data):
+            oldest_text = training_data["text"]
+            voice_url: str = training_data["voice_url"]
             # Download audio from voice_url and prepare for clone_voice
-            if voice_url.startswith('file://'):
+            if voice_url.startswith("file://"):
                 # Local file URL - pass file path directly
-                file_path = voice_url.replace('file://', '')
+                file_path = voice_url.replace("file://", "")
                 sample_audio_binary = file_path
             else:
                 raise HTTPException(status_code=400, detail="Unsupported URL format for sample_audio")
@@ -246,17 +240,20 @@ async def _transcribe_audio_file(audio_file, locale, model_name=None):
 @app.post('/transcribe')
 async def transcribe(wav: UploadFile = File(...), 
                         locale: str = Depends(get_locale), 
-                        model_name: str = Form(None)):
+                        model_name: str | None = Form(None)):
     pred = await _transcribe_audio_file(wav, locale, model_name)
     return {'response': 'success!', 'transcript': pred}
 
 @app.post('/gendia')
-async def gendia(phrase: str = Form(...), sample_phrase: str = Form(None), 
-                    sample_voice: UploadFile = File(None), 
-                    hash_id: str = Form(DEFAULT_HASH_ID), 
-                    locale: str = Depends(get_locale), model_name: 
-                    str = Form(None), auth_context: 
-                    dict = Depends(get_auth_context)):
+async def gendia(
+    phrase: str = Form(...),
+    sample_phrase: str | None = Form(None),
+    sample_voice: UploadFile | None = File(None),
+    hash_id: str = Form(DEFAULT_HASH_ID),
+    locale: str = Depends(get_locale),
+    model_name: str | None = Form(None),
+    auth_context: dict = Depends(get_auth_context),
+):
     training_data = None
     try:
         # Required parameter
@@ -412,7 +409,7 @@ def generate_sound_wave(phrase):
 async def train_audio(
     audio: UploadFile = File(...),
     text: str = Form(...),
-    hash_id: str = Form(None),
+    hash_id: str | None = Form(None),
     auth_context: dict = Depends(get_auth_context)
 ):
     """
@@ -450,7 +447,7 @@ async def train_audio(
 
         # Upload to GCS
         try:
-            bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET", DEFAULT_BUCKET)
+            bucket_name = os.environ.get("EUPHONIA_DIA_GCS_BUCKET") or DEFAULT_BUCKET
             logger.info(f'Using bucket: {bucket_name}')
                 
             text_url, voice_url = upload_or_update_data(
@@ -477,7 +474,7 @@ async def train_audio(
 
 
 @app.get('/get_voice_models')
-async def get_voice_models(request: Request, bucket: str = None, auth_context: dict = Depends(get_auth_context)):
+async def get_voice_models(request: Request, bucket: str | None = None, auth_context: dict = Depends(get_auth_context)):
     """
     Endpoint to retrieve a list of all available voice models (hash identifiers) from the GCS bucket.
     
@@ -519,9 +516,9 @@ async def get_voice_models(request: Request, bucket: str = None, auth_context: d
 @app.post('/clone_voice')
 async def clone_voice(
     request_text: str = Form(...),
-    sample_audio: Union[UploadFile, bytes] = File(...),
+    sample_audio: UploadFile | bytes | str = File(...),
     sample_text: str = Form(...),
-    model_name: str = Form(None),
+    model_name: str | None = Form(None),
     locale: str = Form(DEFAULT_LOCALE),
     auth_context: dict = Depends(get_auth_context)
 ):

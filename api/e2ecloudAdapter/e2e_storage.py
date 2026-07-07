@@ -3,7 +3,6 @@ E2E Cloud Storage adapter with mock implementations.
 """
 import logging
 from typing import List, Optional, Dict, Any, Tuple, BinaryIO
-import uuid
 
 # Mock logger
 logger = logging.getLogger(__name__)
@@ -11,23 +10,35 @@ logger = logging.getLogger(__name__)
 # Mock storage
 _mock_storage = {}
 
-async def upload_or_update_data_gcs(
+def upload_or_update_data_gcs(
     bucket_name: str,
-    data: bytes,
-    destination_blob_name: str,
-    content_type: str = "application/octet-stream",
-    metadata: Optional[Dict[str, str]] = None
-) -> str:
-    """Mock implementation of upload_or_update_data_gcs."""
-    logger.info(f"[MOCK] Uploading to {bucket_name}/{destination_blob_name}")
-    file_id = str(uuid.uuid4())
-    _mock_storage[destination_blob_name] = {
-        'data': data,
-        'content_type': content_type,
-        'metadata': metadata or {},
-        'id': file_id
+    hash_identifier: str,
+    text_data: str,
+    voice_data_bytes: bytes,
+    random_num: Optional[int] = None,
+    audio_filename: Optional[str] = None,
+    text_filename: Optional[str] = None,
+    audio_content_type: Optional[str] = None,
+    text_content_type: Optional[str] = None,
+) -> Tuple[Optional[str], Optional[str]]:
+    """Mock implementation of the training-data upload interface."""
+    suffix = random_num if random_num is not None else "mock"
+    text_blob_name = f"{hash_identifier}/{text_filename or f'text_{suffix}.txt'}"
+    voice_blob_name = f"{hash_identifier}/{audio_filename or f'voice_{suffix}.wav'}"
+
+    logger.info(f"[MOCK] Uploading training data to {bucket_name}/{hash_identifier}")
+    _mock_storage[text_blob_name] = {
+        'data': text_data.encode("utf-8"),
+        'content_type': text_content_type or "text/plain",
+        'metadata': {'hash_identifier': hash_identifier},
     }
-    return f"mock://{bucket_name}/{destination_blob_name}"
+    _mock_storage[voice_blob_name] = {
+        'data': voice_data_bytes,
+        'content_type': audio_content_type or "audio/wav",
+        'metadata': {'hash_identifier': hash_identifier},
+    }
+
+    return f"mock://{bucket_name}/{text_blob_name}", f"mock://{bucket_name}/{voice_blob_name}"
 
 def get_oldest_training_data(bucket_name: str, prefix: str = "") -> Optional[Dict[str, Any]]:
     """Mock implementation of get_oldest_training_data."""
