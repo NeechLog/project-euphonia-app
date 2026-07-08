@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, HTTPException, status
 from fastapi.responses import JSONResponse, HTMLResponse
 from jose import jwt, JWTError
 import requests
+import httpx
 from google.auth import jwt as google_jwt
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
@@ -310,7 +311,7 @@ def _extract_google_user_info(oauth_result: Dict[str, Any], config: Dict[str, An
         return {}
 
 
-def _exchange_code_for_tokens(
+async def _exchange_code_for_tokens(
     code: str,
     redirect_uri: str,
     client_config: dict,
@@ -333,13 +334,14 @@ def _exchange_code_for_tokens(
     if code_verifier:
         data["code_verifier"] = code_verifier
 
-    resp = requests.post(token_endpoint, data=data, timeout=10)
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(token_endpoint, data=data, timeout=10.0)
     try:
         payload = resp.json()
     except Exception:
         payload = {"raw": resp.text}
 
-    if not resp.ok:
+    if resp.status_code >= 400:
         logger.error("Google token endpoint error: %s", payload)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Google token endpoint error")
 
@@ -352,7 +354,7 @@ async def callback(request: Request):
     """Handle OAuth callback from Google."""
     async def exchange_callback(code: str, redirect_uri: str, config: Dict[str, Any], code_verifier: str | None) -> Dict[str, Any]:
         """Exchange authorization code for tokens."""
-        return _exchange_code_for_tokens(
+        return await _exchange_code_for_tokens(
             code=code,
             redirect_uri=redirect_uri,
             client_config=config,

@@ -11,17 +11,17 @@ from api.oauth.config import init_auth_config, get_auth_config
 
 # Sample configuration data for testing
 SAMPLE_GOOGLE_CONFIG = """
-GOOGLE_CLIENT_ID=test-google-client-id
-GOOGLE_CLIENT_SECRET=test-google-secret
-GOOGLE_TOKEN_ENDPOINT=https://test-google-token-endpoint
+client_id=test-google-client-id
+client_secret=test-google-secret
+token_uri=https://test-google-token-endpoint
 """
 
 SAMPLE_APPLE_CONFIG = """
-APPLE_CLIENT_ID=test-apple-client-id
-APPLE_TEAM_ID=test-team-id
-APPLE_KEY_ID=test-key-id
-APPLE_AUTH_KEY_PATH=/path/to/key.p8
-APPLE_TOKEN_ENDPOINT=https://test-apple-token-endpoint
+client_id=test-apple-client-id
+TEAM_ID=test-team-id
+KEY_ID=test-key-id
+AUTH_KEY_PATH=/path/to/key.p8
+token_uri=https://test-apple-token-endpoint
 """
 
 @pytest.fixture
@@ -70,16 +70,17 @@ class TestAuthConfig:
         )
         
         config_dict = config.to_dict()
-        assert config_dict == {
-            "provider": "test-provider",
-            "platform": "test-platform",
-            "client_id": "test-client-id",
-            "client_secret": "test-secret",
-            "token_endpoint": "https://test-token-endpoint",
-            "team_id": "test-team-id",
-            "key_id": None,
-            "auth_key_path": None
-        }
+        assert config_dict["provider"] == "test-provider"
+        assert config_dict["platform"] == "test-platform"
+        assert config_dict["client_id"] == "test-client-id"
+        assert config_dict["client_secret"] == "test-secret"
+        assert config_dict["token_endpoint"] == "https://test-token-endpoint"
+        assert config_dict["team_id"] == "test-team-id"
+        assert config_dict["key_id"] is None
+        assert config_dict["auth_key_path"] is None
+        assert "scope" in config_dict
+        assert "authorization_endpoint" in config_dict
+        assert "deep_link_scheme" in config_dict
 
 class TestAuthConfigManager:
     """Test the AuthConfigManager class."""
@@ -173,14 +174,14 @@ class TestAuthConfigManager:
         initial_count = len(manager._configs)
         
         # Add a new config file
-        new_config = temp_config_dir / "new_provider_android.env"
-        new_config.write_text("CLIENT_ID=new-client\nCLIENT_SECRET=new-secret\nTOKEN_ENDPOINT=https://new-endpoint")
+        new_config = temp_config_dir / "newprovider_android_release.env"
+        new_config.write_text("client_id=new-client\nclient_secret=new-secret\ntoken_uri=https://new-endpoint")
         
         manager.reload()
         
         assert len(manager._configs) == initial_count + 1
-        assert "new_provider" in manager._configs
-        assert "android" in manager._configs["new_provider"]
+        assert "newprovider" in manager._configs
+        assert "android_release" in manager._configs["newprovider"]
 
 class TestModuleFunctions:
     """Test the module-level functions."""

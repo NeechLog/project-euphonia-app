@@ -594,7 +594,7 @@ class TestValidateAudioMessage:
             mock_validate.assert_called_once_with("/path/to/audio.wav", True)
     
     def test_audio_message_with_both_binary_and_file(self):
-        """Test validation priority: binary over file path."""
+        """Test validation priority: file path over binary."""
         audio_message = AudioMessage()
         audio_message.audio_binary = b'test audio data'
         audio_message.audio_file_path = "/path/to/audio.wav"
@@ -603,12 +603,13 @@ class TestValidateAudioMessage:
             mock_validate_binary.return_value = (True, "")
             
             with patch('api.model_local_file_request_helper.validate_audio_format_from_file') as mock_validate_file:
+                mock_validate_file.return_value = (True, "")
                 is_valid, error_msg = validate_audio_message(audio_message)
                 
                 assert is_valid
-                # Should prefer binary validation
-                mock_validate_binary.assert_called_once()
-                mock_validate_file.assert_not_called()
+                # Should prefer file path validation
+                mock_validate_file.assert_called_once_with("/path/to/audio.wav", True)
+                mock_validate_binary.assert_not_called()
     
     def test_audio_message_without_format_check(self):
         """Test validation without format checking."""

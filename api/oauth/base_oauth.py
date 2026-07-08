@@ -1,6 +1,7 @@
 """
 Base OAuth implementation that can be used by multiple providers.
 """
+from typing import Awaitable
 import logging
 import secrets
 import time
@@ -11,9 +12,10 @@ from datetime import datetime, timezone
 from urllib.parse import quote as Uri
 from api.oauth import jwt_utils
 from fastapi import HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
-from jose import jwt, JWTError
+from jose import jwt
+from jose.exceptions import ExpiredSignatureError, JWTError
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +112,7 @@ class OAuthProvider:
             logger.debug("Successfully decoded state token for platform: %s", 
                         payload.get('platform', 'unknown'))
             return payload
-        except jwt.ExpiredSignatureError:
+        except ExpiredSignatureError:
             logger.warning("Expired state token received")
             raise HTTPException(status_code=400, detail="State token has expired")
         except JWTError as e:
@@ -211,11 +213,13 @@ class OAuthProvider:
         logger.debug("OAuth callback from %s with query params: %s", 
                     client_host, dict(request.query_params))
         
-        params = dict(request.query_params)
+        params: Dict[str, str] = dict(request.query_params)
         if request.method.upper() == "POST":
             try:
                 form = await request.form()
-                params.update(dict(form))
+                for key, value in form.items():
+                    if isinstance(value, str):
+                        params[key] = value
             except Exception:
                 pass
         code = params.get("code")
@@ -274,7 +278,7 @@ class OAuthProvider:
         error_message: Optional[str] = None,
         status_code: int = 200,
         should_redirect: bool = True
-    ) -> HTMLResponse | JSONResponse:
+    ) -> Response:
         """Create authentication response (success or error).
         
         Args:
@@ -291,7 +295,7 @@ class OAuthProvider:
             should_redirect: Whether to redirect (True) or return JSON (False) -this is 302 only.
             
         Returns:
-            HTMLResponse | JSONResponse: The appropriate response
+            Response: The appropriate response
         """
         # If should_redirect is True, redirect to app with result
         # Otherwise, return JSON response
@@ -307,8 +311,8 @@ class OAuthProvider:
                     deep_link_url += f"&name={Uri(user_client_info['Name'])}"
             else:
                 # Create deep link URL with error information
-                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri(error_message)}"
-                
+                safe_error_message = error_message or "Authentication failed"
+                deep_link_url = f"{self._get_deep_link_scheme(config)}://auth/callback?success=false&error={Uri(safe_error_message)}"
                 # Add provider info if available
                 provider_name = getattr(self, 'provider_name', 'unknown')
                 if provider_name != 'unknown':
@@ -384,9 +388,10 @@ class OAuthProvider:
         config_loader: Callable[[str], Any],
         user_info_extractor: Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]],
         # Parameter extraction function that handles both extraction and state verification
-        param_extractor: Optional[Callable[[Request], Tuple[str, Optional[str], str, Optional[str], str]]] = None,
+        # In handle_callback signature:
+        param_extractor: Optional[Callable[[Request], Awaitable[Tuple[str, Optional[str], str, Optional[str], str]]]] = None,
         should_redirect: bool = False
-    ) -> HTMLResponse | JSONResponse:
+    ) -> Response:
         """Handle OAuth callback.
         
         Args:
@@ -402,11 +407,11 @@ class OAuthProvider:
             should_redirect: Whether to redirect response (True) or return JSON/HTML (False)
             
         Returns:
-            HTMLResponse | JSONResponse: The response to return to the client
+            Response: The response to return to the client
         """
         logger.info("Handling OAuth callback request")
         await _log_request_details(request)
-        response: Optional[HTMLResponse | JSONResponse] = None
+        response: Optional[Response] = None
         try:
             # Use custom parameter extractor or default server-mediated extraction
             if param_extractor:
@@ -423,6 +428,8 @@ class OAuthProvider:
                 
                 # Extract return_url from state payload
                 state_cookie_value = request.cookies.get(self.state_cookie_name)
+                if state_cookie_value is None:
+                    raise HTTPException(status_code=400, detail="Missing state cookie")
                 state_payload = self._verify_state_and_get_payload(state_cookie_value, state)
                 return_url = state_payload.get("return_url", "/")
             
@@ -501,7 +508,7 @@ class OAuthProvider:
             return response
 
         except HTTPException as he:
-            msg = str(he.detail)
+            msg = he.detail
             
             # Extract return_url from state payload for error case
             state_cookie_value = request.cookies.get(self.state_cookie_name)
