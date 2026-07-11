@@ -566,7 +566,7 @@ async def clone_voice(
             clone_request.model_name = model_name
         
         # Call clone server
-        with AudioCloneClient("localhost:50051") as client:
+        with AudioCloneClient("localhost:50053") as client:
             logger.info("Calling clone server at localhost:50051")
             response = client.clone(clone_request)
             
