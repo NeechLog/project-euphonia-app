@@ -1,5 +1,8 @@
 import os
 import tempfile
+import asyncio
+import inspect
+import aiofiles
 import soundfile as sf
 from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
@@ -119,7 +122,7 @@ def validate_audio_format(audio_binary, check_format=True):
             pass
 
 
-def build_and_validate_audio_message(audio_data, text, file_name=None, check_format=True, locale=None):
+async def build_and_validate_audio_message(audio_data, text, file_name=None, check_format=True, locale=None):
     """
     Builder function that creates and validates AudioMessage objects.
     
@@ -143,7 +146,7 @@ def build_and_validate_audio_message(audio_data, text, file_name=None, check_for
         raise HTTPException(status_code=400, detail="Audio data or text or file_name must be provided")
     
     temp_file_path = None
-    audio_message, temp_file_path = build_raw_audio_message(audio_data, text, file_name)
+    audio_message, temp_file_path = await build_raw_audio_message(audio_data, text, file_name)
     logger.debug(f"Built raw audio message, temp_file_path: {temp_file_path}")
         
     # Set locale if provided
@@ -154,7 +157,7 @@ def build_and_validate_audio_message(audio_data, text, file_name=None, check_for
     try:
         # Validate the AudioMessage
         logger.debug("Validating audio message")
-        is_valid, error_msg = validate_audio_message(audio_message, check_format)
+        is_valid, error_msg = await asyncio.to_thread(validate_audio_message, audio_message, check_format)
         if not is_valid:
             logger.debug(f"Audio validation failed: {error_msg}")
             raise HTTPException(status_code=400, detail=f"Invalid audio: {error_msg}")
@@ -182,7 +185,7 @@ def build_and_validate_audio_message(audio_data, text, file_name=None, check_for
             logger.debug(f"Final file path will be: {final_file_path}")
             
             # Move file from temp to good location
-            shutil.move(temp_file_path, final_file_path)
+            await asyncio.to_thread(shutil.move, temp_file_path, final_file_path)
             logger.debug(f"Successfully moved file to: {final_file_path}")
             
             # Update AudioMessage with new file path
@@ -201,13 +204,13 @@ def build_and_validate_audio_message(audio_data, text, file_name=None, check_for
         # Always clean up temp file if it still exists
         try:
             if temp_file_path and os.path.exists(temp_file_path) and temp_file_path.startswith(TEMP_AUDIO_DIR):
-                os.unlink(temp_file_path)
+                await asyncio.to_thread(os.unlink, temp_file_path)
                 logger.debug(f"Cleaned up temp file: {temp_file_path}")
         except Exception as cleanup_error:
             logger.error(f"Failed to clean up temp file {temp_file_path}: {cleanup_error}")
 
 
-def write_temp_file(audio_binary, file_path):
+async def write_temp_file(audio_binary, file_path):
     """
     Write audio binary data to a temporary file.
     
@@ -219,14 +222,14 @@ def write_temp_file(audio_binary, file_path):
         None
     """
     logger.debug(f"Writing {len(audio_binary)} bytes to temporary file: {file_path}")
-    with open(file_path, 'wb') as f:
-        f.write(audio_binary)
-        f.flush()
-        os.fsync(f.fileno())
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(audio_binary)
+        await f.flush()
+        await asyncio.to_thread(os.fsync, f.fileno())
     logger.debug(f"Successfully wrote temporary file: {file_path}")
 
 
-def build_raw_audio_message(audio_data, text, file_name=None):
+async def build_raw_audio_message(audio_data, text, file_name=None):
     """
     Builder function to create AudioMessage objects with file creation.
     
@@ -250,6 +253,8 @@ def build_raw_audio_message(audio_data, text, file_name=None):
             # It's an UploadFile object, read the data
             logger.debug("Reading audio data from UploadFile object")
             audio_binary = audio_data.read()
+            if inspect.isawaitable(audio_binary):
+                audio_binary = await audio_binary
         elif isinstance(audio_data, str):
             # It's a file path string, handle file:// prefix
             if audio_data.startswith('file://'):
@@ -257,8 +262,8 @@ def build_raw_audio_message(audio_data, text, file_name=None):
             else:
                 file_path = audio_data
             logger.debug(f"Reading audio data from file path: {file_path}")
-            with open(file_path, 'rb') as f:
-                audio_binary = f.read()
+            async with aiofiles.open(file_path, 'rb') as f:
+                audio_binary = await f.read()
             file_name = file_path ## override the parameter since it is actual file. 
         else:
             # It's already binary data (bytes)
@@ -283,7 +288,7 @@ def build_raw_audio_message(audio_data, text, file_name=None):
             logger.debug(f"Using relative file name, temp path: {file_path}")
             # Only write file if we have audio data
             if audio_binary is not None:
-                write_temp_file(audio_binary, file_path)
+                await write_temp_file(audio_binary, file_path)
     else:
         file_path = None
         if audio_binary is not None:
@@ -293,7 +298,7 @@ def build_raw_audio_message(audio_data, text, file_name=None):
             file_path = os.path.join(TEMP_AUDIO_DIR, f"audio_{timestamp}.wav")
             logger.debug(f"Generated temp file path with timestamp: {file_path}")
             # Only write file if we have audio data
-            write_temp_file(audio_binary, file_path)
+            await write_temp_file(audio_binary, file_path)
     
     # Create AudioMessage object
     audio_message = AudioMessage()

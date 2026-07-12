@@ -22,13 +22,13 @@ The test suite covers the following main functions:
   - Exception handling
 
 ### 3. `write_temp_file()`
-- **TestWriteTempFile**: Tests temporary file writing
+- **TestWriteTempFile**: Tests async temporary file writing
   - Successful file writing
   - Directory creation
   - Data integrity verification
 
 ### 4. `build_raw_audio_message()`
-- **TestBuildRawAudioMessage**: Tests AudioMessage object creation
+- **TestBuildRawAudioMessage**: Tests async AudioMessage object creation
   - Binary data handling
   - UploadFile object handling
   - File path generation
@@ -42,7 +42,7 @@ The test suite covers the following main functions:
   - Format checking options
 
 ### 6. `build_and_validate_audio_message()`
-- **TestBuildAndValidateAudioMessage**: Tests complete workflow
+- **TestBuildAndValidateAudioMessage**: Tests async complete workflow
   - Error handling for missing data
   - Successful build and validation
   - File moving logic

@@ -221,7 +221,7 @@ async def _transcribe_audio_file(audio_file, locale, model_name=None):
     try:
         # Read the uploaded file content
         contents = await audio_file.read()
-        audio_message, _ = build_and_validate_audio_message(contents, None, locale=locale)        
+        audio_message, _ = await build_and_validate_audio_message(contents, None, locale=locale)
         # Create TranscribeRequest
         transcribe_request = transcribe_interface_pb2.TranscribeRequest()
         transcribe_request.input.CopyFrom(audio_message)
@@ -547,7 +547,7 @@ async def clone_voice(
     try:        
         # Create and validate AudioMessage objects using wrapper
         # No need to validate request audio as for cloning we do not have it. 
-        request_audio_message, _ = build_and_validate_audio_message(None, text=request_text, locale=locale)
+        request_audio_message, _ = await build_and_validate_audio_message(None, text=request_text, locale=locale)
         # TODO:somehow we need to validate if sample audio is local i.e. not with request. and hence pass file path directly
         # Determine file name if sample_audio is not binary
         file_name = None
@@ -556,7 +556,7 @@ async def clone_voice(
             if isinstance(sample_audio, str):
                 file_name = sample_audio
         
-        sample_audio_message, _ = build_and_validate_audio_message(
+        sample_audio_message, _ = await build_and_validate_audio_message(
             audio_data=sample_audio,
             text=sample_text,
             file_name=file_name,

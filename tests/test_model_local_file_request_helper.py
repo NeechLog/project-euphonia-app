@@ -267,8 +267,9 @@ class TestValidateAudioFormat:
 
 class TestWriteTempFile:
     """Test cases for write_temp_file function."""
+    pytestmark = pytest.mark.asyncio
     
-    def test_write_temp_file_success(self):
+    async def test_write_temp_file_success(self):
         """Test successful writing of temporary file."""
         audio_binary = b'test audio data'
         
@@ -276,7 +277,7 @@ class TestWriteTempFile:
             tmp_path = tmp_file.name
         
         try:
-            write_temp_file(audio_binary, tmp_path)
+            await write_temp_file(audio_binary, tmp_path)
             
             # Verify file was written correctly
             with open(tmp_path, 'rb') as f:
@@ -286,7 +287,7 @@ class TestWriteTempFile:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
     
-    def test_write_temp_file_with_directory_creation(self):
+    async def test_write_temp_file_with_directory_creation(self):
         """Test writing to a file in a non-existent directory."""
         audio_binary = b'test audio data'
         
@@ -296,7 +297,7 @@ class TestWriteTempFile:
             
             # Create parent directories first
             os.makedirs(nested_dir, exist_ok=True)
-            write_temp_file(audio_binary, file_path)
+            await write_temp_file(audio_binary, file_path)
             
             # Verify directory was created and file was written
             assert os.path.exists(nested_dir)
@@ -309,8 +310,9 @@ class TestWriteTempFile:
 
 class TestBuildRawAudioMessage:
     """Test cases for build_raw_audio_message function."""
+    pytestmark = pytest.mark.asyncio
     
-    def test_build_with_upload_file_object(self):
+    async def test_build_with_upload_file_object(self):
         """Test building AudioMessage with UploadFile-like object."""
         # Create a mock UploadFile object
         mock_upload_file = Mock()
@@ -320,13 +322,13 @@ class TestBuildRawAudioMessage:
         file_name = "upload_audio"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(mock_upload_file, text, file_name)
+            audio_message, file_path = await build_raw_audio_message(mock_upload_file, text, file_name)
             
             assert audio_message.audio_binary == b'upload file data'
             assert audio_message.text == text
             mock_write.assert_called_once()
     
-    def test_build_with_upload_file_object_and_filename_override(self):
+    async def test_build_with_upload_file_object_and_filename_override(self):
         """Test building with UploadFile object and verifying file_name override logic."""
         # Create a mock UploadFile object
         mock_upload_file = Mock()
@@ -336,7 +338,7 @@ class TestBuildRawAudioMessage:
         file_name = "original_name"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(mock_upload_file, text, file_name)
+            audio_message, file_path = await build_raw_audio_message(mock_upload_file, text, file_name)
             
             assert audio_message.audio_binary == b'upload file data'
             assert audio_message.text == text
@@ -346,7 +348,7 @@ class TestBuildRawAudioMessage:
             assert args[0] == b'upload file data'  # audio_binary
             assert "original_name" in args[1]  # file_path should contain original_name
     
-    def test_build_with_file_path_string(self):
+    async def test_build_with_file_path_string(self):
         """Test building AudioMessage with file path string."""
         # Create a temporary file with audio data
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
@@ -359,7 +361,7 @@ class TestBuildRawAudioMessage:
             file_name = "provided_name"
             
             with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-                audio_message, returned_file_path = build_raw_audio_message(tmp_file_path, text, file_name)
+                audio_message, returned_file_path = await build_raw_audio_message(tmp_file_path, text, file_name)
                 
                 # Verify the audio binary was read from file
                 assert audio_message.audio_binary == test_audio_data
@@ -372,7 +374,7 @@ class TestBuildRawAudioMessage:
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
     
-    def test_build_with_file_path_string_no_filename_provided(self):
+    async def test_build_with_file_path_string_no_filename_provided(self):
         """Test building with file path string when no file_name parameter provided."""
         # Create a temporary file with audio data
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
@@ -384,7 +386,7 @@ class TestBuildRawAudioMessage:
             text = "file path transcript"
             
             with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-                audio_message, returned_file_path = build_raw_audio_message(tmp_file_path, text, None)
+                audio_message, returned_file_path = await build_raw_audio_message(tmp_file_path, text, None)
                 
                 # Verify the audio binary was read from file
                 assert audio_message.audio_binary == test_audio_data
@@ -397,7 +399,7 @@ class TestBuildRawAudioMessage:
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
     
-    def test_build_with_binary_data(self):
+    async def test_build_with_binary_data(self):
         """Test building AudioMessage with binary audio data."""
         audio_binary = b'test audio data'
         text = "test transcript"
@@ -406,7 +408,7 @@ class TestBuildRawAudioMessage:
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
             mock_write.return_value = None
             
-            audio_message, file_path = build_raw_audio_message(audio_binary, text, file_name)
+            audio_message, file_path = await build_raw_audio_message(audio_binary, text, file_name)
             
             assert audio_message.audio_binary == audio_binary
             assert audio_message.text == text
@@ -414,14 +416,14 @@ class TestBuildRawAudioMessage:
             assert file_path.endswith('.wav')
             mock_write.assert_called_once()
     
-    def test_build_with_binary_data_no_filename(self):
+    async def test_build_with_binary_data_no_filename(self):
         """Test building with binary data and no filename provided."""
         audio_binary = b'test audio data'
         text = "test transcript"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
             with patch('time.time', return_value=1234567890):
-                audio_message, file_path = build_raw_audio_message(audio_binary, text, None)
+                audio_message, file_path = await build_raw_audio_message(audio_binary, text, None)
                 
                 assert audio_message.audio_binary == audio_binary
                 assert audio_message.text == text
@@ -430,13 +432,13 @@ class TestBuildRawAudioMessage:
                 assert file_path.endswith('.wav')
                 mock_write.assert_called_once()
     
-    def test_build_with_none_audio_data(self):
+    async def test_build_with_none_audio_data(self):
         """Test building AudioMessage without audio data."""
         text = "text only message"
         file_name = "text_only"
         
         with patch('os.makedirs'):
-            audio_message, file_path = build_raw_audio_message(None, text, file_name)
+            audio_message, file_path = await build_raw_audio_message(None, text, file_name)
         
         assert audio_message.text == text
         assert audio_message.audio_binary == b""  # Empty binary
@@ -445,64 +447,64 @@ class TestBuildRawAudioMessage:
         assert file_path.endswith('.wav')
         assert "text_only" in file_path
     
-    def test_build_with_none_audio_data_no_filename(self):
+    async def test_build_with_none_audio_data_no_filename(self):
         """Test building with None audio data and no filename."""
         text = "text only message"
         
         with patch('os.makedirs'):
-            audio_message, file_path = build_raw_audio_message(None, text, None)
+            audio_message, file_path = await build_raw_audio_message(None, text, None)
         
         assert audio_message.text == text
         assert audio_message.audio_binary == b""  # Empty binary
         # When no audio data and no filename, file_path should be None
         assert file_path is None
     
-    def test_build_with_absolute_path(self):
+    async def test_build_with_absolute_path(self):
         """Test building with absolute file path."""
         audio_binary = b'test audio data'
         text = "test transcript"
         absolute_path = "/absolute/path/test.wav"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(audio_binary, text, absolute_path)
+            audio_message, file_path = await build_raw_audio_message(audio_binary, text, absolute_path)
             
             assert file_path == absolute_path
             # Should not write to absolute paths
             mock_write.assert_not_called()
     
-    def test_build_with_url(self):
+    async def test_build_with_url(self):
         """Test building with URL."""
         audio_binary = b'test audio data'
         text = "test transcript"
         url = "https://example.com/audio.wav"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(audio_binary, text, url)
+            audio_message, file_path = await build_raw_audio_message(audio_binary, text, url)
             
             assert file_path == url
             mock_write.assert_not_called()
     
-    def test_build_with_generated_filename(self):
+    async def test_build_with_generated_filename(self):
         """Test building with auto-generated filename."""
         audio_binary = b'test audio data'
         text = "test transcript"
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
             with patch('time.time', return_value=1234567890):
-                audio_message, file_path = build_raw_audio_message(audio_binary, text)
+                audio_message, file_path = await build_raw_audio_message(audio_binary, text)
                 
                 assert file_path is not None
                 assert "audio_1234567890" in file_path
                 assert file_path.endswith('.wav')
                 mock_write.assert_called_once()
     
-    def test_file_path_returned_correctly_upload_file(self):
+    async def test_file_path_returned_correctly_upload_file(self):
         """Test that file path is correctly returned when using UploadFile."""
         mock_upload_file = Mock()
         mock_upload_file.read.return_value = b'upload data'
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(mock_upload_file, "test", "test_file")
+            audio_message, file_path = await build_raw_audio_message(mock_upload_file, "test", "test_file")
             
             # Should return the temp file path that was created
             assert file_path is not None
@@ -510,7 +512,7 @@ class TestBuildRawAudioMessage:
             assert "test_file" in file_path
             mock_write.assert_called_once()
     
-    def test_file_path_returned_correctly_file_string(self):
+    async def test_file_path_returned_correctly_file_string(self):
         """Test that file path is correctly returned when using file path string."""
         # Create a temporary file
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp_file:
@@ -518,7 +520,7 @@ class TestBuildRawAudioMessage:
             tmp_file_path = tmp_file.name
         
         try:
-            audio_message, file_path = build_raw_audio_message(tmp_file_path, "test", "ignored_name")
+            audio_message, file_path = await build_raw_audio_message(tmp_file_path, "test", "ignored_name")
             
             # Should return the actual file path
             assert file_path == tmp_file_path
@@ -526,12 +528,12 @@ class TestBuildRawAudioMessage:
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
     
-    def test_file_path_returned_correctly_binary_data(self):
+    async def test_file_path_returned_correctly_binary_data(self):
         """Test that file path is correctly returned when using binary data."""
         audio_binary = b'test binary data'
         
         with patch('api.model_local_file_request_helper.write_temp_file') as mock_write:
-            audio_message, file_path = build_raw_audio_message(audio_binary, "test", "binary_test")
+            audio_message, file_path = await build_raw_audio_message(audio_binary, "test", "binary_test")
             
             # Should return the temp file path that was created
             assert file_path is not None
@@ -539,10 +541,10 @@ class TestBuildRawAudioMessage:
             assert "binary_test" in file_path
             mock_write.assert_called_once()
     
-    def test_file_path_returned_correctly_none_data(self):
+    async def test_file_path_returned_correctly_none_data(self):
         """Test that file path is correctly returned when using None data."""
         with patch('os.makedirs'):
-            audio_message, file_path = build_raw_audio_message(None, "test", "none_test")
+            audio_message, file_path = await build_raw_audio_message(None, "test", "none_test")
             
             # Should still create a path even with no audio data
             assert file_path is not None
@@ -627,18 +629,19 @@ class TestValidateAudioMessage:
 
 class TestBuildAndValidateAudioMessage:
     """Test cases for build_and_validate_audio_message function."""
+    pytestmark = pytest.mark.asyncio
     
-    def test_no_data_provided(self):
+    async def test_no_data_provided(self):
         """Test building with no audio, text, or file_name."""
         with pytest.raises(HTTPException) as exc_info:
-            build_and_validate_audio_message(None, None, None)
+            await build_and_validate_audio_message(None, None, None)
         
         assert exc_info.value.status_code == 400
         assert "must be provided" in str(exc_info.value.detail)
     
     @patch('api.model_local_file_request_helper.build_raw_audio_message')
     @patch('api.model_local_file_request_helper.validate_audio_message')
-    def test_successful_build_and_validate(self, mock_validate, mock_build):
+    async def test_successful_build_and_validate(self, mock_validate, mock_build):
         """Test successful build and validation."""
         # Setup mocks
         mock_audio_message = AudioMessage()
@@ -649,7 +652,7 @@ class TestBuildAndValidateAudioMessage:
         
         with patch('os.makedirs'), patch('shutil.move'), \
              patch('os.path.exists', return_value=True):
-            audio_message, file_path = build_and_validate_audio_message(
+            audio_message, file_path = await build_and_validate_audio_message(
                 b'test audio', "test text", "test_file"
             )
         
@@ -658,27 +661,27 @@ class TestBuildAndValidateAudioMessage:
     
     @patch('api.model_local_file_request_helper.build_raw_audio_message')
     @patch('api.model_local_file_request_helper.validate_audio_message')
-    def test_validation_failure(self, mock_validate, mock_build):
+    async def test_validation_failure(self, mock_validate, mock_build):
         """Test build with validation failure."""
         mock_audio_message = AudioMessage()
         mock_build.return_value = (mock_audio_message, "/tmp/test.wav")
         mock_validate.return_value = (False, "Invalid audio format")
         
         with pytest.raises(HTTPException) as exc_info:
-            build_and_validate_audio_message(b'invalid audio', "test text", "test_file")
+            await build_and_validate_audio_message(b'invalid audio', "test text", "test_file")
         
         assert exc_info.value.status_code == 400
         assert "Invalid audio format" in str(exc_info.value.detail)
     
     @patch('api.model_local_file_request_helper.build_raw_audio_message')
     @patch('api.model_local_file_request_helper.validate_audio_message')
-    def test_with_locale(self, mock_validate, mock_build):
+    async def test_with_locale(self, mock_validate, mock_build):
         """Test building with locale."""
         mock_audio_message = AudioMessage()
         mock_build.return_value = (mock_audio_message, None)
         mock_validate.return_value = (True, "")
         
-        audio_message, file_path = build_and_validate_audio_message(
+        audio_message, file_path = await build_and_validate_audio_message(
             None, "test text", locale="en-US"
         )
         
@@ -687,7 +690,7 @@ class TestBuildAndValidateAudioMessage:
     
     @patch('api.model_local_file_request_helper.build_raw_audio_message')
     @patch('api.model_local_file_request_helper.validate_audio_message')
-    def test_file_moving_logic(self, mock_validate, mock_build):
+    async def test_file_moving_logic(self, mock_validate, mock_build):
         """Test file moving from temp to good directory."""
         mock_audio_message = AudioMessage()
         temp_path = os.path.join(TEMP_AUDIO_DIR, "temp_audio.wav")
@@ -697,7 +700,7 @@ class TestBuildAndValidateAudioMessage:
         with patch('os.makedirs'), patch('shutil.move') as mock_move, \
              patch('os.path.exists', return_value=True):
             
-            audio_message, file_path = build_and_validate_audio_message(
+            audio_message, file_path = await build_and_validate_audio_message(
                 b'test audio', "test text", "final_name"
             )
             
@@ -706,7 +709,7 @@ class TestBuildAndValidateAudioMessage:
     
     @patch('api.model_local_file_request_helper.build_raw_audio_message')
     @patch('api.model_local_file_request_helper.validate_audio_message')
-    def test_cleanup_on_exception(self, mock_validate, mock_build):
+    async def test_cleanup_on_exception(self, mock_validate, mock_build):
         """Test cleanup when exception occurs."""
         mock_audio_message = AudioMessage()
         temp_path = os.path.join(TEMP_AUDIO_DIR, "temp_audio.wav")
@@ -715,7 +718,7 @@ class TestBuildAndValidateAudioMessage:
         
         with patch('os.path.exists', return_value=True), patch('os.unlink') as mock_unlink:
             try:
-                build_and_validate_audio_message(b'test audio', "test text", "test_file")
+                await build_and_validate_audio_message(b'test audio', "test text", "test_file")
             except HTTPException:
                 pass  # Expected
             
@@ -775,7 +778,8 @@ class TestIsValidWav:
 class TestIntegration:
     """Integration tests combining multiple functions."""
     
-    def test_full_workflow_with_temp_file(self):
+    @pytest.mark.asyncio
+    async def test_full_workflow_with_temp_file(self):
         """Test full workflow from binary to validated AudioMessage with temp file."""
         # Create a simple WAV header for testing
         wav_header = b'RIFF\x24\x08\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x40\x1f\x00\x00\x80\x3e\x00\x00\x02\x00\x10\x00data\x00\x08\x00\x00'
@@ -785,7 +789,7 @@ class TestIntegration:
             mock_validate.return_value = (True, "")
             
             # Test the full workflow
-            audio_message, file_path = build_and_validate_audio_message(
+            audio_message, file_path = await build_and_validate_audio_message(
                 audio_data, "test transcript", "integration_test"
             )
             
@@ -793,13 +797,14 @@ class TestIntegration:
             assert audio_message.text == "test transcript"
             assert audio_message.audio_binary == audio_data
     
-    def test_error_propagation(self):
+    @pytest.mark.asyncio
+    async def test_error_propagation(self):
         """Test that errors are properly propagated through the workflow."""
         with patch('api.model_local_file_request_helper.validate_audio_format_from_file') as mock_validate:
             mock_validate.return_value = (False, "Test error")
             
             with pytest.raises(HTTPException) as exc_info:
-                build_and_validate_audio_message(b'bad audio', "test", "test")
+                await build_and_validate_audio_message(b'bad audio', "test", "test")
             
             assert "Test error" in str(exc_info.value.detail)
     
