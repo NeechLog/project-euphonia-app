@@ -52,6 +52,14 @@ from api.model_local_file_request_helper import (
 # Default constants
 DEFAULT_HASH_ID = os.getenv('DEFAULT_HASH_ID', 'default_user_123')
 DEFAULT_BUCKET = os.getenv('DEFAULT_BUCKET', '/home/jovyan/voice_assist/prod/voice_sample')
+SERVICE_URLS = {
+    "PARAKEET-STT": "localhost:50061",
+    "VIBE-TTS": "localhost:50062",
+    "QWEN-STT": "localhost:50062",
+    "QWEN-TTS": "localhost:50053",
+}
+STTURL = SERVICE_URLS["QWEN-STT"]
+TTSURL = SERVICE_URLS["QWEN-TTS"]
 STORAGE = "local" # or "gcs" or "e2ebucket"
 # Constants for audio file storage are now imported from model_request_helpers
 
@@ -221,8 +229,8 @@ async def _transcribe_audio_file(audio_file, locale, model_name=None):
             transcribe_request.model_name = model_name
         
         # Make gRPC call to transcribe service
-        with TranscribeClient("localhost:50062") as client:
-            logger.info("Calling transcribe server at localhost:50062")
+        with TranscribeClient(STTURL) as client:
+            logger.info(f"Calling transcribe server at {STTURL}")
             response = client.transcribe(transcribe_request)
             
             # Extract transcription from response
@@ -566,8 +574,8 @@ async def clone_voice(
             clone_request.model_name = model_name
         
         # Call clone server
-        with AudioCloneClient("localhost:50053") as client:
-            logger.info("Calling clone server at localhost:50051")
+        with AudioCloneClient(TTSURL) as client:
+            logger.info(f"Calling clone server at {TTSURL}")
             response = client.clone(clone_request)
             
             logger.info(f"Clone response received: {len(response.cloned_audio_message.audio_binary)} bytes")
