@@ -288,7 +288,10 @@ async def gendia(
             raise HTTPException(status_code=400, detail=error)
         
          # Handle sample_audio: use provided sample_voice or download from voice_url
-        if sample_voice:
+        if sample_voice and sample_phrase:
+            sample_audio_binary = training_data['voice_url']
+            logger.info(f"Using prepared sample voice file: {sample_audio_binary}")
+        elif sample_voice:
             # Use the sample_voice that was uploaded in the request
             sample_audio_binary = sample_voice
             logger.info(f"Using provided sample voice file: {sample_voice.filename}")
