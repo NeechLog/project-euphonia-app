@@ -12,6 +12,17 @@ NGINX_USER="www-data"
 CONFIGURE_S6=""
 SSL_BACKUP_DIR=""
 
+print_prerequisite_commands() {
+  cat <<'EOF'
+If you have not done so, run these prerequisite commands separately:
+  pip install uv
+  apt-get install -y libopenblas-dev
+  apt-get install gh nginx tmux
+
+This script only prints those commands; it does not execute them.
+EOF
+}
+
 usage() {
   cat <<EOF
 Usage: sudo $0 --ssl-backup-dir BACKUP_DIR [--with-s6|--without-s6]
@@ -29,6 +40,14 @@ and runs nginx -t.
 This script does not install nginx and does not start or reload nginx.
 EOF
 }
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+print_prerequisite_commands
+echo
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
