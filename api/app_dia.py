@@ -50,7 +50,7 @@ from api.model_local_file_request_helper import (
 )
 
 # Default constants
-DEFAULT_HASH_ID = os.getenv('DEFAULT_HASH_ID', 'default_user_123')
+DEFAULT_HASH_ID = os.getenv('DEFAULT_HASH_ID', 'Suresh')
 DEFAULT_BUCKET = os.getenv('DEFAULT_BUCKET', '/home/jovyan/voice_assist/prod/voice_sample')
 SERVICE_URLS = {
     "PARAKEET-STT": "localhost:50061",
@@ -269,49 +269,27 @@ async def gendia(
             logger.error('No phrase provided in request')
             raise HTTPException(status_code=400, detail='No phrase provided')
         
-        if sample_phrase:
-            logger.info(f'Received sample phrase: {sample_phrase}')
-       
-        if sample_voice:
-            logger.info(f'Received sample voice file: {sample_voice.filename}')
-            is_valid, error_msg = await is_valid_wav(sample_voice, check_format=True)
-            if not is_valid:
-               raise HTTPException(status_code=400, detail=f'Invalid WAV file: {error_msg}')
-        
         training_data, error = await prepare_training_data(
             phrase=phrase,
-            sample_phrase=sample_phrase,
-            sample_voice=sample_voice if sample_voice and sample_phrase else None,
-            hash_id=hash_id
+            hash_id=DEFAULT_HASH_ID
         )
         if error:
             raise HTTPException(status_code=400, detail=error)
         
-         # Handle sample_audio: use provided sample_voice or download from voice_url
-        if sample_voice and sample_phrase:
-            sample_audio_binary = training_data['voice_url']
-            logger.info(f"Using prepared sample voice file: {sample_audio_binary}")
-        elif sample_voice:
-            # Use the sample_voice that was uploaded in the request
-            sample_audio_binary = sample_voice
-            logger.info(f"Using provided sample voice file: {sample_voice.filename}")
+        voice_url = training_data['voice_url']
+        logger.info(f"Loading sample audio from voice_url: {voice_url}")
+
+        if voice_url.startswith('file://'):
+            sample_audio_binary = voice_url
         else:
-            # Handle sample_audio from voice_url (could be GCS URL or local file URL)
-            voice_url = training_data['voice_url']
-            logger.info(f"Loading sample audio from voice_url: {voice_url}")
-            
-            if voice_url.startswith('file://'):
-                # Local file URL - read directly
-                sample_audio_binary = voice_url
-            else:
-                raise HTTPException(status_code=400, detail="Unsupported URL format for sample_audio")        
+            raise HTTPException(status_code=400, detail="Unsupported URL format for sample_audio")
 
         return await clone_voice(
                     request_text=phrase,
                     sample_audio = sample_audio_binary,
                     sample_text=training_data['text'],
-                    model_name=model_name,
-                    locale=locale,
+                    model_name=None,
+                    locale=DEFAULT_LOCALE,
                     auth_context=auth_context
                 )
     except Exception as e:
